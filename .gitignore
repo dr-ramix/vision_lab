@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual env & secrets
+venv/
+.env
+
+# Raw data (never share)
+data/
+datasets/
+
+# Training artifacts (selective sharing)
+checkpoints/        # raw checkpoints (ignored)
+runs/
+wandb/
+logs/
+
+# Ignore ALL model files by default
+*.pth
+*.pt
+*.ckpt
+
+# BUT allow best model inside outputs
+!outputs/**/best.pth
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
