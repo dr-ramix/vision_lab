@@ -29,3 +29,6 @@ logs/
 Thumbs.db
 .vscode/
 .idea/
+
+# local split manifests
+src/fer/dataset/splits/*.json
