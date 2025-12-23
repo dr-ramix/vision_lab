@@ -1,0 +1,118 @@
+1. Datensätze herunterladen
+
+Lade die folgenden Datensätze manuell von den offiziellen Quellen herunter:
+
+- FER2013 : https://www.kaggle.com/datasets/msambare/fer2013
+- AffectNet : https://www.kaggle.com/datasets/mstjebashazida/affectnet
+
+
+2. Erwartete Ordnerstruktur der Datensätze
+
+Stelle sicher, dass jeder Datensatz folgende Struktur hat:
+
+FER2013/
+  train/
+    anger/
+    disgust/
+    fear/
+    happiness/
+    sadness/
+    surprise/
+  test/
+    anger/
+    disgust/
+    fear/
+    happiness/
+    sadness/
+    surprise/
+
+AffectNet/
+  train/
+    anger/
+    disgust/
+    fear/
+    happiness/
+    sadness/
+    surprise/
+  test/
+    anger/
+    disgust/
+    fear/
+    happiness/
+    sadness/
+    surprise/
+  labels.csv   (optional, wird aktuell nicht benötigt)
+
+- Falls eine labels.csv existiert (z. B. bei AffectNet), muss sie nicht entfernt werden.
+- Das Pre-Processing-Skript nutzt die Ordnerstruktur, nicht CSV-Labels.
+
+
+3. Datensätze unter sources/ einfügen
+
+Lege beide Datensätze als Unterordner von main/src/fer/dataset/sources/ ab:
+
+sources/
+  FER2013/
+    train/
+    test/
+  AffectNet/
+    train/
+    test/
+    labels.csv
+
+
+4. images_raw erzeugen
+
+Nun werden alle Datensätze in eine einheitliche Projektstruktur überführt.
+
+Führe das Script 'prepare_images_raw.py' unter main/scripts/ aus.
+
+Was das Script macht:
+
+- erkennt automatisch, ob ein Datensatz train/test besitzt
+- entnimmt 10 % von train als val, falls val fehlt
+- kopiert nur die Emotionen: anger, disgust, fear, happiness, sadness, surprise
+- füllt den Ordner images_raw:
+
+images_raw/
+  train/
+    <emotion>/
+  val/
+    <emotion>/
+  test/
+    <emotion>/
+
+images_raw ist die Datenbasis für alle weiteren Schritte.
+
+
+5. MTCNN + Cropping + Normalisierung ausführen
+
+Jetzt wird das eigentliche Gesichts-Pre-Processing durchgeführt.
+
+Führe das Script 'run_mtcnn_crop_norm.py' unter main/scripts/ aus.
+
+Was dieses Script macht:
+
+- iteriert über images_raw/train|val|test/<emotion>
+- führt aus:
+  ~ MTCNN Gesichtserkennung
+  ~ Augenbasierte Rotation
+  ~ Paper-Crop-Formel
+  ~ Resize auf 64×64
+  ~ Intensity Normalization (Paper-Style)
+  ~ überschreibt vorhandene Ergebnisse bewusst, falls sie existieren
+- Ergebnis:
+
+images_mtcnn_cropped_norm/
+  train/
+    <emotion>/
+  val/
+    <emotion>/
+  test/
+    <emotion>/
+
+
+
+
+
+
