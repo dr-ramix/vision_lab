@@ -1,6 +1,3 @@
-# src/fer/pre_processing/basic_processor.py
-# Funktionalität entspricht deinem intensity_norm_paper_look + resize + grayscale->norm.
-
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,19 +9,13 @@ import numpy as np
 
 @dataclass
 class BasicProcessResult:
-    resized_bgr: np.ndarray          # (64,64,3) uint8
-    gray: np.ndarray                 # (64,64) uint8
-    normalized_gray_vis: np.ndarray  # (64,64) uint8 (sichtbar wie bei deinem Code)
+    resized_bgr: np.ndarray                # (64,64,3) uint8
+    gray: np.ndarray                       # (64,64) uint8
+    normalized_gray_vis: np.ndarray        # (64,64) uint8
+    normalized_rgb_vis: np.ndarray         # (64,64,3) uint8  <- NEU (stacked)
 
 
 class BasicImageProcessor:
-    """
-    Single-image basic processing:
-      - resize -> gray
-      - intensity_norm_paper_look (Eq.1-style + sigma_floor + optional blur + tanh compression)
-      - returns arrays; optional save
-    """
-
     def __init__(
         self,
         target_size: Tuple[int, int] = (64, 64),
@@ -50,10 +41,6 @@ class BasicImageProcessor:
         post_blur_ksize: int = 3,
         tanh_scale: float = 2.5,
     ) -> np.ndarray:
-        """
-        Paper Eq.(1): x' = (x - mu)/sigma  (mu gaussian-weighted, 7x7; sigma local std)
-        Danach: sanfte tanh-Kompression -> sichtbar wie Fig.6, ohne übertriebenen Kontrast.
-        """
         g = gray.astype(np.float32)
 
         mu = cv2.GaussianBlur(g, (ksize, ksize), 0)
@@ -73,15 +60,18 @@ class BasicImageProcessor:
         vis = ((y + 1.0) * 0.5 * 255.0).round().astype(np.uint8)
         return vis
 
+    @staticmethod
+    def gray_to_3ch(gray_u8: np.ndarray) -> np.ndarray:
+        """(H,W) -> (H,W,3) durch 3x Stack (identische Kanäle)."""
+        # Option 1: np.stack
+        return np.stack([gray_u8, gray_u8, gray_u8], axis=-1)
+        # Option 2 (gleichwertig): cv2.cvtColor(gray_u8, cv2.COLOR_GRAY2BGR)
+
     def process_bgr(self, img_bgr: np.ndarray) -> BasicProcessResult:
-        """
-        Input: BGR uint8 (cv2.imread output)
-        Output: resized BGR, gray, normalized gray (uint8)
-        """
         resized = cv2.resize(img_bgr, self.target_size, interpolation=cv2.INTER_LINEAR)
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
 
-        norm = self.intensity_norm_paper_look(
+        norm_gray = self.intensity_norm_paper_look(
             gray,
             ksize=self.ksize,
             eps=self.eps,
@@ -90,10 +80,13 @@ class BasicImageProcessor:
             tanh_scale=self.tanh_scale,
         )
 
+        norm_rgb = self.gray_to_3ch(norm_gray)  # <- NEU
+
         return BasicProcessResult(
             resized_bgr=resized,
             gray=gray,
-            normalized_gray_vis=norm,
+            normalized_gray_vis=norm_gray,
+            normalized_rgb_vis=norm_rgb,
         )
 
     def process_path(self, img_path: Union[str, Path]) -> Optional[BasicProcessResult]:
@@ -107,8 +100,14 @@ class BasicImageProcessor:
         self,
         result: BasicProcessResult,
         out_path: Union[str, Path],
+        save_rgb: bool = True,  # <- NEU: standardmäßig 3-kanalig speichern
     ) -> Path:
         out_path = Path(out_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(str(out_path), result.normalized_gray_vis)
+
+        if save_rgb:
+            cv2.imwrite(str(out_path), result.normalized_rgb_vis)   # (H,W,3)
+        else:
+            cv2.imwrite(str(out_path), result.normalized_gray_vis)  # (H,W)
+
         return out_path
