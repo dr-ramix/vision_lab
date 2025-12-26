@@ -138,10 +138,16 @@
 
 from pathlib import Path
 import torch
+from facenet_pytorch.models.utils.training import accuracy
+from scipy.stats import logistic
 
 from main.src.fer.dataset.dataloaders.dataloader import build_dataloaders
+from main.src.fer.models.cnn_vanilla import CNNVanilla
+from torch.optim import AdamW
+from tqdm import tqdm
+import torch.nn as nn
 
-project_root = Path(__file__).resolve().parents[0]  # wo train_simple_model.py liegt
+project_root = Path(__file__).resolve().parents[1]  # wo train_simple_model.py liegt
 images_root = project_root / "src" / "fer" / "dataset" / "standardized" / "images_mtcnn_cropped_norm"
 
 # num_workers:
@@ -168,3 +174,104 @@ class_to_idx = dls.class_to_idx
 #     yb = yb.to(device)  # (B,)
 #     logits = model(xb)
 #     # loss = ...
+
+#############################################################################################
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model = CNNVanilla().to(device)  # <- wichtig: Modell auf GPU/CPU
+optimizer = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-2)
+criterion = nn.CrossEntropyLoss()
+
+# Angemessene Anzahl Epochen (Startwert):
+# - 15–30 ist üblich; ich setze 20 als vernünftigen Default.
+num_epochs = 20
+
+
+# -------------------------
+# Evaluation helper
+# -------------------------
+@torch.no_grad()
+def evaluate(model: torch.nn.Module, loader, criterion, device):
+    model.eval()
+
+    total_loss = 0.0
+    correct = 0
+    total = 0
+
+    for xb, yb in loader:
+        xb = xb.to(device)  # (B, C, 64, 64)
+        yb = yb.to(device)  # (B,)
+
+        logits = model(xb)                 # (B, 6)
+        loss = criterion(logits, yb)
+
+        total_loss += loss.item() * xb.size(0)
+
+        preds = logits.argmax(dim=1)       # (B,)
+        correct += (preds == yb).sum().item()
+        total += xb.size(0)
+
+    avg_loss = total_loss / max(total, 1)
+    acc = correct / max(total, 1)
+    return avg_loss, acc
+
+
+# -------------------------
+# Training loop
+# -------------------------
+best_val_acc = -1.0
+best_state = None
+
+for epoch in range(1, num_epochs + 1):
+    model.train()
+
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{num_epochs}", leave=False)
+
+    for xb, yb in pbar:
+        xb = xb.to(device)
+        yb = yb.to(device)
+
+        optimizer.zero_grad(set_to_none=True)
+
+        logits = model(xb)
+        loss = criterion(logits, yb)
+
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item() * xb.size(0)
+        preds = logits.argmax(dim=1)
+        correct += (preds == yb).sum().item()
+        total += xb.size(0)
+
+        pbar.set_postfix(loss=loss.item(), acc=(correct / max(total, 1)))
+
+    train_loss = running_loss / max(total, 1)
+    train_acc = correct / max(total, 1)
+
+    val_loss, val_acc = evaluate(model, val_loader, criterion, device)
+
+    print(
+        f"Epoch {epoch:02d} | "
+        f"train loss {train_loss:.4f} acc {train_acc:.4f} | "
+        f"val loss {val_loss:.4f} acc {val_acc:.4f}"
+    )
+
+    # best model merken (nach val accuracy)
+    if val_acc > best_val_acc:
+        best_val_acc = val_acc
+        best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+# -------------------------
+# Test evaluation (mit bestem Val-Modell)
+# -------------------------
+if best_state is not None:
+    model.load_state_dict(best_state)
+
+test_loss, test_acc = evaluate(model, test_loader, criterion, device)
+print(f"TEST | loss {test_loss:.4f} acc {test_acc:.4f}")
