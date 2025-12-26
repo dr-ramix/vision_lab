@@ -25,7 +25,7 @@ import kagglehub
 # Projektpfade
 # -------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[2]   # vision_lab/
-SOURCES_DIR = PROJECT_ROOT / "src" / "fer" / "dataset" / "sources"
+SOURCES_DIR = PROJECT_ROOT / "main" / "src" / "fer" / "dataset" / "sources"
 
 FER2013_DST = SOURCES_DIR / "fer2013"
 AFFECTNET_DST = SOURCES_DIR / "affectnet"
