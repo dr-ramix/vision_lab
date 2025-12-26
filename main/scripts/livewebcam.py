@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import cv2
-import sys
-from models.cnn_vanilla import CNNVanilla
+from main.src.fer.models.cnn_vanilla import CNNVanilla
 
 
 # -----------------------------------
@@ -43,7 +42,7 @@ while True:
 
     # -----------------------------------
     # DUMMY INPUT (nur damit Code läuft)
-    # ---> wird durch echtes Preprocessing ersetzt
+    # ---> dieser Abschnitt soll gelöscht werden, sobald Preprocessing beginnt!!!!
     # -----------------------------------
     dummy_input = torch.zeros((1, 3, 64, 64)).to(device)
 
