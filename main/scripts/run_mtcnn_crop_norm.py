@@ -13,8 +13,8 @@ import shutil
 import cv2
 import numpy as np
 
-from main.src.fer.pre_processing.face_detection.mtcnn import MTCNNFaceCropper
-from main.src.fer.pre_processing.basic_img_norms import BasicImageProcessor
+from fer.pre_processing.face_detection.mtcnn import MTCNNFaceCropper
+from fer.pre_processing.basic_img_norms import BasicImageProcessor
 
 SPLITS = ["train", "val", "test"]
 CLASSES = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
