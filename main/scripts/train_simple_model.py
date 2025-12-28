@@ -162,9 +162,10 @@ from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
-from main.src.fer.dataset.dataloaders.dataloader import build_dataloaders, CLASS_ORDER, CLASS_TO_IDX
-from main.src.fer.metrics.classification import compute_classification_metrics
-from main.src.fer.models.cnn_vanilla import CNNVanilla
+from fer.dataset.dataloaders.dataloader import build_dataloaders, CLASS_ORDER, CLASS_TO_IDX
+from fer.metrics.classification import compute_classification_metrics
+from fer.models.cnn_vanilla import CNNVanilla
+
 
 
 # -----------------------------
@@ -567,7 +568,6 @@ if __name__ == "__main__":
         project_root=project_root,
         images_root=images_root,
 
-        # you can edit these any time
         results_root=project_root / "results",
         batch_size=64,
         num_workers=4,
