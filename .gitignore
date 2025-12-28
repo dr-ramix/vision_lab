@@ -26,7 +26,6 @@ runs/
 wandb/
 logs/
 
-
 # BUT allow best model inside outputs
 !outputs/**/best.pth
 
@@ -38,9 +37,8 @@ Thumbs.db
 
 # local split manifests
 src/fer/dataset/splits/*.json
-/main/src/fer/dataset/splits/images_raw_manifest.json
 
-# training artifacts
+
 results/
 *.pt
 *.ckpt
