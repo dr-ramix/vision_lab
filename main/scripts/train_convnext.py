@@ -1,4 +1,3 @@
-
 from torchvision.models import convnext_tiny, ConvNeXt_Tiny_Weights
 
 if cfg.num_classes != 6: raise ValueError("Your dataloader enforces exactly 6 classes (CLASS_ORDER).")
