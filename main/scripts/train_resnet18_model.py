@@ -57,10 +57,10 @@ class Config:
     early_stop_patience: int = 8
 
     # preview images (saved PNG)
-    preview_n: int = 20          # ✅ test on 20 random test images
-    preview_cols: int = 5        # ✅ 5 columns => 4 rows for 20
-    preview_split: str = "test"  # ✅ random samples from test
-    preview_max_batches: int = 10  # ✅ scan only first N batches (avoids list(loader))
+    preview_n: int = 20          #test on 20 random test images
+    preview_cols: int = 5        #5 columns => 4 rows for 20
+    preview_split: str = "test"  #random samples from test
+    preview_max_batches: int = 10  #scan only first N batches (avoids list(loader))
 
 
 # -----------------------------
