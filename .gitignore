@@ -26,10 +26,6 @@ runs/
 wandb/
 logs/
 
-# Ignore ALL model files by default
-*.pth
-*.pt
-*.ckpt
 
 # BUT allow best model inside outputs
 !outputs/**/best.pth
