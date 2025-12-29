@@ -1,0 +1,77 @@
+from __future__ import annotations
+
+from typing import Callable, Dict, List
+import torch.nn as nn
+
+from fer.models.cnn_resnet18 import ResNet18FER
+from fer.models.cnn_vanilla import CNNVanilla
+
+
+# ------------------------------------------------------------
+# Model registry
+# ------------------------------------------------------------
+# Each entry is a function that returns nn.Module.
+# All functions must accept the SAME arguments.
+#
+# Signature:
+#   factory(num_classes: int, in_channels: int, transfer: bool) -> nn.Module
+# ------------------------------------------------------------
+
+_REGISTRY: Dict[str, Callable[..., nn.Module]] = {}
+
+
+def register_model(name: str, factory: Callable[..., nn.Module]) -> None:
+    """
+    Register a model factory.
+    Keep this explicit (no decorators, no magic).
+    """
+    key = name.strip().lower()
+    if not key:
+        raise ValueError("Model name cannot be empty.")
+    if key in _REGISTRY:
+        raise ValueError(f"Model '{key}' already registered.")
+    _REGISTRY[key] = factory
+
+
+def available_models() -> List[str]:
+    return sorted(_REGISTRY.keys())
+
+
+def make_model(
+    name: str,
+    *,
+    num_classes: int,
+    in_channels: int = 3,
+    transfer: bool = False,
+) -> nn.Module:
+    """
+    Create a model by name.
+
+    Used directly by train.py / runner.py.
+    """
+    key = name.strip().lower()
+    if key not in _REGISTRY:
+        raise ValueError(f"Unknown model '{name}'. Available: {available_models()}")
+    return _REGISTRY[key](
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    )
+
+
+# ------------------------------------------------------------
+# Register models here (explicit & readable)
+# ------------------------------------------------------------
+
+register_model(
+    "resnet18",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "cnn_vanilla",
+    lambda num_classes, **_: CNNVanilla(num_classes=num_classes),
+)
