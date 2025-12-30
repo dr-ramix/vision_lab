@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from fer.models.cnn_resnet18 import ResNet18FER
 from fer.models.cnn_vanilla import CNNVanilla
-
+from fer.models.coatnet import CoAtNet
 
 # ------------------------------------------------------------
 # Model registry
@@ -74,4 +74,15 @@ register_model(
 register_model(
     "cnn_vanilla",
     lambda num_classes, **_: CNNVanilla(num_classes=num_classes),
+)
+
+register_model(
+    "coatnet_tiny",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-0",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
 )
