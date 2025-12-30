@@ -20,6 +20,12 @@ main/src/fer/dataset/standardized/images_mtcnn_cropped_norm/*
 main/src/fer/dataset/standardized/images_raw/*
 !main/src/fer/dataset/standardized/images_raw/.gitkeep
 
+main/src/fer/dataset/standardized/fer2013/fer2013_raw/*
+!main/src/fer/dataset/standardized/fer2013/fer2013_raw/.gitkeep
+
+main/src/fer/dataset/standardized/fer2013/fer2013_mtcnn_cropped_norm/*
+!main/src/fer/dataset/standardized/fer2013/fer2013_mtcnn_cropped_norm/.gitkeep
+
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)
 runs/
@@ -43,3 +49,4 @@ results/
 *.pt
 *.ckpt
 *.pth
+main/src/fer/dataset/splits/images_raw_manifest.json

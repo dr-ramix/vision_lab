@@ -3,16 +3,22 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+
 @dataclass
 class TrainSettings:
 
+    # --------------------------------------------------
+    # Core
+    # --------------------------------------------------
     model: str = "resnet18"
 
     project_root: Optional[Path] = None
     images_root: Optional[Path] = None
-    output_root: Optional[Path] = None 
+    output_root: Optional[Path] = None
 
-    # training basics
+    # --------------------------------------------------
+    # Training basics
+    # --------------------------------------------------
     epochs: int = 30
     bs: int = 64
     lr: float = 3e-4
@@ -20,31 +26,37 @@ class TrainSettings:
     weight_decay: float = 1e-2
     num_workers: int = 4
     seed: int = 42
+    image_size: int = 64
 
-    # methods
-    optimizer: str = "AdamW"         # AdamW | SGD
-    scheduler: str = "cosine"        # cosine | none
+    # --------------------------------------------------
+    # Methods
+    # --------------------------------------------------
+    optimizer: str = "adamw"          # adamw | adam | sgd | rmsprop | ...
+    scheduler: str = "cosine"         # cosine | step | exp | plateau | none
     class_weight: bool = True
-    early_stop: int = 8              # 0 disables
+    early_stop: int = 8               # 0 disables
     grad_clip: float = 1.0
-    amp: bool = True                 # auto disabled on CPU
+    amp: bool = True                  # auto disabled on CPU
     transfer: bool = False
     freeze_backbone: bool = False
-    label_smoothing: float = 0.0     # 0..0.2 recommended
-    sampler: str = "none"            # none | weighted (optional later)
+    label_smoothing: float = 0.0      # 0..0.2 recommended
+    sampler: str = "none"             # reserved for future (not implemented)
 
-    # preview
+    # --------------------------------------------------
+    # Preview
+    # --------------------------------------------------
     preview_n: int = 25
-    preview_split: str = "test"      # train|val|test
+    preview_split: str = "test"       # train | val | test
     preview_cols: int = 5
     preview_max_batches: int = 10
 
-    # misc
-    run_tag: str = ""                # optional string label
+    # --------------------------------------------------
+    # Misc
+    # --------------------------------------------------
+    run_tag: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
-        # convert Paths to str for json
         for k, v in list(d.items()):
             if isinstance(v, Path):
                 d[k] = str(v)

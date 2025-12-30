@@ -1,0 +1,9 @@
+slurmstepd-adakit: error: Unable to create TMPDIR [/tmp/user/24755]: Permission denied
+slurmstepd-adakit: error: Setting TMPDIR to /tmp
+==== Job info ====
+JobID: 64917
+Node:  adakit.cip.ifi.lmu.de
+CWD:   /home/s/sallauka/visionlab/vision_lab
+User:  sallauka
+==================
+/var/spool/slurmd/job64917/slurm_script: line 21: cd: /home/s/sallauka/vision_lab/vision_lab: No such file or directory
