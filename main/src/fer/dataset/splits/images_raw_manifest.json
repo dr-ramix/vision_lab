@@ -9,36 +9,6 @@
   "mode": "copy",
   "on_conflict": "skip",
   "datasets": {
-    "affectnet": {
-      "layout": "train_test_dirs",
-      "counts": {
-        "train": {
-          "anger": 1350,
-          "disgust": 1106,
-          "fear": 1361,
-          "happiness": 2106,
-          "sadness": 2782,
-          "surprise": 1907
-        },
-        "val": {
-          "anger": 150,
-          "disgust": 123,
-          "fear": 151,
-          "happiness": 234,
-          "sadness": 309,
-          "surprise": 212
-        },
-        "test": {
-          "anger": 1718,
-          "disgust": 1248,
-          "fear": 1664,
-          "happiness": 2704,
-          "sadness": 1584,
-          "surprise": 1920
-        }
-      },
-      "written": 22629
-    },
     "fer2013": {
       "layout": "train_test_dirs",
       "counts": {
@@ -68,6 +38,36 @@
         }
       },
       "written": 29689
+    },
+    "affectnet": {
+      "layout": "train_test_dirs",
+      "counts": {
+        "train": {
+          "anger": 1350,
+          "disgust": 1106,
+          "fear": 1361,
+          "happiness": 2106,
+          "sadness": 2782,
+          "surprise": 1907
+        },
+        "val": {
+          "anger": 150,
+          "disgust": 123,
+          "fear": 151,
+          "happiness": 234,
+          "sadness": 309,
+          "surprise": 212
+        },
+        "test": {
+          "anger": 1718,
+          "disgust": 1248,
+          "fear": 1664,
+          "happiness": 2704,
+          "sadness": 1584,
+          "surprise": 1920
+        }
+      },
+      "written": 22629
     }
   }
 }
