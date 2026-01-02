@@ -99,10 +99,10 @@ def run_preprocessing(
 
 def main():
     project_root = Path(__file__).resolve().parents[1]  # .../main
-    dataset_root = project_root / "src" / "fer" / "dataset" / "standardized" / "fer2013"
+    dataset_root = project_root / "src" / "fer" / "dataset" / "standardized" / "ferplus"
 
-    images_raw_root = dataset_root / "fer2013_raw"
-    out_root = dataset_root / "fer2013_mtcnn_cropped_norm"
+    images_raw_root = dataset_root / "ferplus_raw"
+    out_root = dataset_root / "ferplus_mtcnn_cropped_norm"
 
     run_preprocessing(
         images_raw_root=images_raw_root,
