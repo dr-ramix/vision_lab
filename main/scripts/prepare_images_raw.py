@@ -1,89 +1,117 @@
 from __future__ import annotations
+
 from pathlib import Path
 import argparse
 import json
 import random
 import shutil
-import csv
 import hashlib
-
-try:
-    import numpy as np
-except Exception:
-    np = None
-
-try:
-    import cv2
-except Exception:
-    cv2 = None
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 # Standard-Klassen (genau deine 6)
 STD_CLASSES = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
 
-# FER2013 emotion mapping (klassisch: 0..6 = anger, disgust, fear, happiness, sadness, surprise, neutral)
-FER2013_ID_TO_LABEL = {
-    0: "anger",
-    1: "disgust",
-    2: "fear",
-    3: "happiness",
-    4: "sadness",
-    5: "surprise",
-    6: None,       # neutral -> drop
-}
 
+# ------------------ basic helpers ------------------
 def safe_mkdir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
+
 
 def is_img(p: Path) -> bool:
     return p.is_file() and p.suffix.lower() in IMG_EXTS
 
+
+def _find_child_dir_ci(parent: Path, wanted: str) -> Path | None:
+    """Find direct child directory by name, case-insensitive (Linux-safe)."""
+    w = wanted.lower()
+    if not parent.exists():
+        return None
+    for c in parent.iterdir():
+        if c.is_dir() and c.name.lower() == w:
+            return c
+    return None
+
+
+def _find_first_dir_ci(parent: Path, names: list[str]) -> Path | None:
+    """Try multiple directory names (case-insensitive) and return first match."""
+    for n in names:
+        d = _find_child_dir_ci(parent, n)
+        if d is not None:
+            return d
+    return None
+
+
+# ------------------ label mapping (KEEP your synonyms!) ------------------
 def normalize_label(name: str) -> str | None:
     key = name.strip().lower()
     synonyms = {
-        "Anger": "anger",
-        "angry": "anger",
+        # anger
         "anger": "anger",
-        "Disgust": "disgust",
+        "angry": "anger",
+        "6": "anger",
+
+        # disgust
         "disgust": "disgust",
-        "Fear": "fear",
+        "3": "disgust",
+
+        # fear
         "fear": "fear",
-        "Happy": "happiness",
+        "2": "fear",
+
+        # happiness
         "happy": "happiness",
-        "Happiness": "happiness",
         "happiness": "happiness",
-        "Sad": "sad",
+        "4": "happiness",
+
+        # sadness
         "sad": "sadness",
-        "Sadness": "sadness",
         "sadness": "sadness",
-        "Surprised": "surprise",
+        "5": "sadness",
+
+        # surprise
         "surprised": "surprise",
-        "Surprise": "surprise",
         "surprise": "surprise",
-        "Neutral": None,
+        "1": "surprise",
+
+        # drop / ignore
         "neutral": None,
-        "Contempt": None,
+        "7": None,
         "contempt": None,
     }
     return synonyms.get(key, key if key in STD_CLASSES else None)
 
-def detect_layout(dataset_root: Path):
-    """Return ("split", train_dir, test_dir) or ("unsplit", root)."""
-    for a, b in [("train", "test"), ("Training", "Testing")]:
-        t = dataset_root / a
-        s = dataset_root / b
-        if t.exists() and s.exists():
-            return ("split", t, s)
-    return ("unsplit", dataset_root, None)
 
+# ------------------ layout detection (supports validation for FERPlus) ------------------
+def detect_layout(dataset_root: Path):
+    """
+    Return:
+      ("split", train_dir, test_dir, val_dir_or_None)
+      ("unsplit", root, None, None)
+
+    Detected case-insensitive:
+      train: train | training
+      test: test | testing
+      val: validation | val | valid
+    """
+    train_dir = _find_first_dir_ci(dataset_root, ["train", "training"])
+    test_dir = _find_first_dir_ci(dataset_root, ["test", "testing"])
+    val_dir = _find_first_dir_ci(dataset_root, ["validation", "val", "valid"])
+
+    if train_dir is not None and test_dir is not None:
+        return ("split", train_dir, test_dir, val_dir)
+
+    return ("unsplit", dataset_root, None, None)
+
+
+# ------------------ collecting & splitting ------------------
 def collect_class_images(root: Path):
     """
     Expects root/<label>/**.jpg ...
     Returns dict std_label -> [paths]
     """
     out = {c: [] for c in STD_CLASSES}
-    if not root.exists():
+    if not root or not root.exists():
         return out
 
     for sub in root.iterdir():
@@ -97,6 +125,7 @@ def collect_class_images(root: Path):
                 out[mapped].append(p)
 
     return out
+
 
 def stratified_split(paths_by_class: dict[str, list[Path]], ratios: tuple[float, float, float], seed: int):
     rng = random.Random(seed)
@@ -116,6 +145,7 @@ def stratified_split(paths_by_class: dict[str, list[Path]], ratios: tuple[float,
 
     return split
 
+
 def val_from_train(train_by_class: dict[str, list[Path]], val_frac: float, seed: int):
     rng = random.Random(seed)
     out = {"train": {}, "val": {}}
@@ -128,13 +158,16 @@ def val_from_train(train_by_class: dict[str, list[Path]], val_frac: float, seed:
         out["train"][cls] = paths[n_val:]
     return out
 
+
+# ------------------ writing images_raw ------------------
 def stable_name(prefix: str, src: Path):
     """
-    Create stable unique filename so multiple datasets can coexist.
-    Uses dataset prefix + hash of relative path to avoid collisions.
+    Stable unique filename so multiple datasets can coexist.
+    Uses dataset prefix + hash of full path to avoid collisions.
     """
     h = hashlib.md5(str(src).encode("utf-8")).hexdigest()[:10]
     return f"{prefix}__{h}__{src.name}"
+
 
 def copy_or_link(src: Path, dst: Path, mode: str, on_conflict: str):
     safe_mkdir(dst.parent)
@@ -150,11 +183,11 @@ def copy_or_link(src: Path, dst: Path, mode: str, on_conflict: str):
     if mode == "copy":
         shutil.copy2(src, dst)
     elif mode == "hardlink":
-        # requires same drive, and permissions
         dst.hardlink_to(src)
     else:
         raise ValueError("mode must be copy|hardlink")
     return True
+
 
 def write_split_images(split_dict: dict, out_raw: Path, mode: str, on_conflict: str, prefix: str):
     written = 0
@@ -166,126 +199,13 @@ def write_split_images(split_dict: dict, out_raw: Path, mode: str, on_conflict: 
                     written += 1
     return written
 
-def find_fer2013_csv(ds_root: Path) -> Path | None:
-    # common filenames
-    for name in ["fer2013.csv", "FER2013.csv", "icml_face_data.csv"]:
-        p = ds_root / name
-        if p.exists():
-            return p
-    # search shallow
-    for p in ds_root.rglob("*.csv"):
-        if p.name.lower() == "fer2013.csv":
-            return p
-    return None
 
-def ensure_cv2_numpy():
-    if np is None:
-        raise RuntimeError("numpy not available. Install numpy.")
-    if cv2 is None:
-        raise RuntimeError("opencv-python not available. Install opencv-python to write FER2013 images.")
-
-def fer2013_usage_to_split(usage: str) -> str | None:
-    u = usage.strip().lower()
-    if "train" in u:
-        return "train"
-    if "publictest" in u or "public test" in u:
-        return "test"
-    if "privatetest" in u or "private test" in u:
-        return "test"
-    return None
-
-def process_fer2013_csv(csv_path: Path, out_raw: Path, val_frac: float, seed: int, prefix: str,
-                        on_conflict: str):
-    """
-    Writes FER2013 images to out_raw/{train,val,test}/{class}/...
-    Strategy:
-      - Use Usage column for train/test
-      - From train portion, carve out val_frac per class (stratified) using seed
-      - Only 6 emotions, drop neutral
-    """
-    ensure_cv2_numpy()
-    rng = random.Random(seed)
-
-    # First pass: collect rows in memory per class per split (train/test)
-    train_rows = {c: [] for c in STD_CLASSES}
-    test_rows = {c: [] for c in STD_CLASSES}
-
-    with open(csv_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        required = {"emotion", "pixels", "Usage"}
-        if not required.issubset(set(reader.fieldnames or [])):
-            raise RuntimeError(f"FER2013 CSV must have columns {required}, got {reader.fieldnames}")
-
-        for idx, row in enumerate(reader):
-            try:
-                emo = int(row["emotion"])
-            except Exception:
-                continue
-            cls = FER2013_ID_TO_LABEL.get(emo, None)
-            if cls is None or cls not in STD_CLASSES:
-                continue
-
-            split = fer2013_usage_to_split(row["Usage"])
-            if split == "train":
-                train_rows[cls].append((idx, row))
-            elif split == "test":
-                test_rows[cls].append((idx, row))
-
-    # Split val from train per class
-    val_rows = {c: [] for c in STD_CLASSES}
-    train_keep = {c: [] for c in STD_CLASSES}
-
-    for cls, rows in train_rows.items():
-        rows = list(rows)
-        rng.shuffle(rows)
-        n = len(rows)
-        n_val = int(round(n * val_frac))
-        val_rows[cls] = rows[:n_val]
-        train_keep[cls] = rows[n_val:]
-
-    def write_rows(split_name: str, rows_by_class: dict[str, list[tuple[int, dict]]]):
-        written = 0
-        for cls, rows in rows_by_class.items():
-            for idx, row in rows:
-                pixels = row["pixels"].strip().split()
-                arr = np.array(pixels, dtype=np.uint8).reshape(48, 48)
-                # keep grayscale but write as 3-channel? you want RGB later anyway; here keep single channel PNG
-                # If you prefer RGB files: convert to 3-channel
-                # img = cv2.cvtColor(arr, cv2.COLOR_GRAY2BGR)
-                img = arr
-
-                # stable filename from idx
-                name = f"{prefix}__{idx:06d}.png"
-                dst = out_raw / split_name / cls / name
-                safe_mkdir(dst.parent)
-                if dst.exists() and on_conflict == "skip":
-                    continue
-                if dst.exists() and on_conflict == "overwrite":
-                    dst.unlink()
-                cv2.imwrite(str(dst), img)
-                written += 1
-        return written
-
-    written = 0
-    written += write_rows("train", train_keep)
-    written += write_rows("val", val_rows)
-    written += write_rows("test", test_rows)
-
-    return {
-        "layout": "fer2013_csv",
-        "counts": {
-            "train": {c: len(train_keep[c]) for c in STD_CLASSES},
-            "val": {c: len(val_rows[c]) for c in STD_CLASSES},
-            "test": {c: len(test_rows[c]) for c in STD_CLASSES},
-        },
-        "written": written,
-    }
-
+# ------------------ main ------------------
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--datasets", nargs="+", default=["all"], help="Dataset folder names under sources/ or 'all'")
     ap.add_argument("--seed", type=int, default=42)
-    ap.add_argument("--val-frac", type=float, default=0.10, help="Val share from train when train/test exists")
+    ap.add_argument("--val-frac", type=float, default=0.10,
+                    help="Val share from train when no validation folder exists (AffectNet/RAF-DB)")
     ap.add_argument("--unsplit-ratio", nargs=3, type=float, default=[0.6, 0.2, 0.2],
                     help="train val test ratios when dataset has no split")
     ap.add_argument("--mode", choices=["copy", "hardlink"], default="copy")
@@ -298,12 +218,13 @@ def main():
     sources_root = dataset_root / "sources"
     out_raw = dataset_root / "standardized" / "images_raw"
     splits_root = dataset_root / "splits"
+
     safe_mkdir(sources_root)
     safe_mkdir(out_raw)
     safe_mkdir(splits_root)
 
-    available = [p.name for p in sources_root.iterdir() if p.is_dir()]
-    datasets = available if args.datasets == ["all"] else args.datasets
+    # ONLY these three datasets (as requested)
+    datasets = ["affectnet", "raf-db", "ferplus"]
 
     manifest = {
         "seed": args.seed,
@@ -314,7 +235,7 @@ def main():
         "datasets": {}
     }
 
-    # ensure base split/class dirs exist (optional; scripts will create anyway)
+    # ensure base split/class dirs exist
     for split in ["train", "val", "test"]:
         for cls in STD_CLASSES:
             safe_mkdir(out_raw / split / cls)
@@ -327,44 +248,50 @@ def main():
 
         print(f"\n=== Dataset: {ds_name} ===")
 
-        # Special-case FER2013 CSV if present
-        fer_csv = find_fer2013_csv(ds_root)
-        if fer_csv is not None:
-            info = process_fer2013_csv(
-                csv_path=fer_csv,
-                out_raw=out_raw,
-                val_frac=args.val_frac,
-                seed=args.seed,
-                prefix=ds_name,
-                on_conflict=args.on_conflict,
-            )
-            manifest["datasets"][ds_name] = info
-            print(f"  -> FER2013 CSV detected: {fer_csv.name}")
-            print(f"  -> written: {info['written']} images")
-            continue
-
-        kind, train_dir, test_dir = detect_layout(ds_root)
+        kind, train_dir, test_dir, val_dir = detect_layout(ds_root)
 
         if kind == "split":
             train_by_class = collect_class_images(train_dir)
             test_by_class = collect_class_images(test_dir)
 
-            tv = val_from_train(train_by_class, val_frac=args.val_frac, seed=args.seed)
             written = 0
-            written += write_split_images({"train": tv["train"], "val": tv["val"]}, out_raw, args.mode, args.on_conflict, ds_name)
+
+            # FERPlus: validation exists -> use it fully, DO NOT touch train
+            if val_dir is not None:
+                val_by_class = collect_class_images(val_dir)
+
+                written += write_split_images({"train": train_by_class}, out_raw, args.mode, args.on_conflict, ds_name)
+                written += write_split_images({"val": val_by_class}, out_raw, args.mode, args.on_conflict, ds_name)
+
+                train_counts = {c: len(train_by_class[c]) for c in STD_CLASSES}
+                val_counts = {c: len(val_by_class[c]) for c in STD_CLASSES}
+            else:
+                # AffectNet / RAF-DB: no validation -> carve out val_frac from train per class
+                tv = val_from_train(train_by_class, val_frac=args.val_frac, seed=args.seed)
+
+                written += write_split_images({"train": tv["train"], "val": tv["val"]},
+                                             out_raw, args.mode, args.on_conflict, ds_name)
+
+                train_counts = {c: len(tv["train"][c]) for c in STD_CLASSES}
+                val_counts = {c: len(tv["val"][c]) for c in STD_CLASSES}
+
+            # test always full
             written += write_split_images({"test": test_by_class}, out_raw, args.mode, args.on_conflict, ds_name)
 
             manifest["datasets"][ds_name] = {
-                "layout": "train_test_dirs",
+                "layout": "train_test_dirs(+optional_validation)",
+                "has_validation_dir": val_dir is not None,
                 "counts": {
-                    "train": {c: len(tv["train"][c]) for c in STD_CLASSES},
-                    "val": {c: len(tv["val"][c]) for c in STD_CLASSES},
+                    "train": train_counts,
+                    "val": val_counts,
                     "test": {c: len(test_by_class[c]) for c in STD_CLASSES},
                 },
                 "written": written,
             }
-            print(f"  -> layout: train/test dirs | written: {written}")
+            print(f"  -> written: {written} | validation_dir: {val_dir is not None}")
+
         else:
+            # unsplit dataset: split into train/val/test via ratios
             all_by_class = collect_class_images(ds_root)
             ratios = tuple(args.unsplit_ratio)
             split = stratified_split(all_by_class, ratios=ratios, seed=args.seed)
@@ -388,6 +315,7 @@ def main():
     print("\nDone.")
     print(f"images_raw: {out_raw}")
     print(f"manifest:  {manifest_path}")
+
 
 if __name__ == "__main__":
     main()

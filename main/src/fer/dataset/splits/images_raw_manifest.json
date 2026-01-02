@@ -9,38 +9,9 @@
   "mode": "copy",
   "on_conflict": "skip",
   "datasets": {
-    "fer2013": {
-      "layout": "train_test_dirs",
-      "counts": {
-        "train": {
-          "anger": 3595,
-          "disgust": 392,
-          "fear": 3687,
-          "happiness": 6493,
-          "sadness": 4347,
-          "surprise": 2854
-        },
-        "val": {
-          "anger": 400,
-          "disgust": 44,
-          "fear": 410,
-          "happiness": 722,
-          "sadness": 483,
-          "surprise": 317
-        },
-        "test": {
-          "anger": 958,
-          "disgust": 111,
-          "fear": 1024,
-          "happiness": 1774,
-          "sadness": 1247,
-          "surprise": 831
-        }
-      },
-      "written": 29689
-    },
     "affectnet": {
-      "layout": "train_test_dirs",
+      "layout": "train_test_dirs(+optional_validation)",
+      "has_validation_dir": false,
       "counts": {
         "train": {
           "anger": 1350,
@@ -68,6 +39,68 @@
         }
       },
       "written": 22629
+    },
+    "raf-db": {
+      "layout": "train_test_dirs(+optional_validation)",
+      "has_validation_dir": false,
+      "counts": {
+        "train": {
+          "anger": 635,
+          "disgust": 645,
+          "fear": 253,
+          "happiness": 4295,
+          "sadness": 1784,
+          "surprise": 1161
+        },
+        "val": {
+          "anger": 70,
+          "disgust": 72,
+          "fear": 28,
+          "happiness": 477,
+          "sadness": 198,
+          "surprise": 129
+        },
+        "test": {
+          "anger": 162,
+          "disgust": 160,
+          "fear": 74,
+          "happiness": 1185,
+          "sadness": 478,
+          "surprise": 329
+        }
+      },
+      "written": 12135
+    },
+    "ferplus": {
+      "layout": "train_test_dirs(+optional_validation)",
+      "has_validation_dir": true,
+      "counts": {
+        "train": {
+          "anger": 8000,
+          "disgust": 8000,
+          "fear": 8000,
+          "happiness": 8000,
+          "sadness": 8000,
+          "surprise": 0
+        },
+        "val": {
+          "anger": 1000,
+          "disgust": 1000,
+          "fear": 1000,
+          "happiness": 1000,
+          "sadness": 1000,
+          "surprise": 0
+        },
+        "test": {
+          "anger": 322,
+          "disgust": 21,
+          "fear": 98,
+          "happiness": 929,
+          "sadness": 449,
+          "surprise": 0
+        }
+      },
+      "written": 46819
     }
   }
 }
