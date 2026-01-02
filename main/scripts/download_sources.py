@@ -1,16 +1,17 @@
 """
 download_sources.py
 
-Downloads FER2013 and AffectNet via kagglehub and copies them into:
+Downloads FERPlus, AffectNet, and RAF-DB via kagglehub and copies them into:
 
 vision_lab/main/src/fer/dataset/sources/
-  ├── fer2013/
-  └── affectnet/
+  ├── ferplus/
+  ├── affectnet/
+  └── raf-db/
 
 Robust features:
 - Finds dataset root recursively (even if Kaggle wraps files in "archive", "archive (3)", etc.)
-- Case-insensitive detection of Train/Test vs train/test
-- Copies only train/, test/ and optional labels.csv into a flat, consistent layout
+- Case-insensitive detection of Train/Test/Validation vs train/test/validation
+- Copies only train/, test/ and optional validation/ and optional labels.csv into a flat, consistent layout
 
 Requirements:
 - pip install kagglehub
@@ -29,9 +30,8 @@ import kagglehub
 
 @dataclass(frozen=True)
 class DatasetSpec:
-    kaggle_id: str     
-    target_name: str  
-
+    kaggle_id: str
+    target_name: str
 
 
 def _find_child_dir_ci(parent: Path, wanted_name: str) -> Optional[Path]:
@@ -58,9 +58,19 @@ def _find_child_file_ci(parent: Path, wanted_name: str) -> Optional[Path]:
     return None
 
 
+def _find_first_existing_dir_ci(parent: Path, names: list[str]) -> Optional[Path]:
+    """Try multiple directory names (case-insensitive) and return the first match."""
+    for name in names:
+        d = _find_child_dir_ci(parent, name)
+        if d is not None:
+            return d
+    return None
+
+
 def _is_dataset_root(p: Path) -> bool:
     """
     Root folder is any directory that contains train/ and test/ (case-insensitive).
+    validation/ is optional.
     """
     if not p.is_dir():
         return False
@@ -87,7 +97,7 @@ def _find_best_root(download_path: Path) -> Path:
             f"Tip: inspect the downloaded folder structure and update root detection if needed."
         )
 
-    candidates.sort(key=lambda x: len(x.parts), reverse=True) 
+    candidates.sort(key=lambda x: len(x.parts), reverse=True)
     return candidates[0]
 
 
@@ -100,11 +110,20 @@ def _resolve_train_test(dataset_root: Path) -> Tuple[Path, Path]:
     return train_dir, test_dir
 
 
+def _resolve_validation(dataset_root: Path) -> Optional[Path]:
+    """
+    Return optional validation directory (case-insensitive).
+    Supports common names: validation/, val/, valid/
+    """
+    return _find_first_existing_dir_ci(dataset_root, ["validation", "val", "valid"])
+
+
 def _copy_required_layout(dataset_root: Path, dst_root: Path) -> None:
     """
     Copy ONLY:
       - train/  -> dst_root/train
       - test/   -> dst_root/test
+      - optional validation/ (validation|val|valid, any casing) -> dst_root/validation
       - optional labels.csv (any casing) -> dst_root/labels.csv
 
     This ensures consistent output layout regardless of source packaging.
@@ -118,10 +137,13 @@ def _copy_required_layout(dataset_root: Path, dst_root: Path) -> None:
     shutil.copytree(train_dir, dst_root / "train")
     shutil.copytree(test_dir, dst_root / "test")
 
+    val_dir = _resolve_validation(dataset_root)
+    if val_dir is not None:
+        shutil.copytree(val_dir, dst_root / "validation")
+
     labels = _find_child_file_ci(dataset_root, "labels.csv")
     if labels is not None:
         shutil.copy2(labels, dst_root / "labels.csv")
-
 
 
 def download_and_place(spec: DatasetSpec, sources_dir: Path) -> Path:
@@ -150,8 +172,9 @@ def main() -> None:
     sources_dir.mkdir(parents=True, exist_ok=True)
 
     specs = [
-        DatasetSpec("msambare/fer2013", "fer2013"),
+        DatasetSpec("arnabkumarroy02/ferplus", "ferplus"),
         DatasetSpec("mstjebashazida/affectnet", "affectnet"),
+        DatasetSpec("shuvoalok/raf-db-dataset", "raf-db"),
     ]
 
     for spec in specs:
