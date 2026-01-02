@@ -302,13 +302,13 @@ def main():
 
     # main/scripts/...  -> parents[1] == main/
     project_root = Path(__file__).resolve().parents[1]
-    dataset_root = project_root / "src" / "fer" / "dataset" 
+    dataset_root = project_root / "src" / "fer" / "dataset"
 
     sources_root = dataset_root / "sources"
-    ds_name = "fer2013"
+    ds_name = "ferplus"
     ds_root = sources_root / ds_name
 
-    out_raw = dataset_root / "standardized" / "fer2013" / "fer2013_raw"
+    out_raw = dataset_root / "standardized" / "ferplus" / "ferplus_raw"
     splits_root = dataset_root / "splits"
 
     safe_mkdir(out_raw)
@@ -334,7 +334,7 @@ def main():
     print(f"\n=== Dataset (only): {ds_name} ===")
     print(f"source: {ds_root}")
 
-    # Special-case FER2013 CSV if present (optional)
+    # Keep old FER2013 CSV handling intact (but now it will simply not trigger for ferplus)
     fer_csv = find_fer2013_csv(ds_root)
     if fer_csv is not None:
         info = process_fer2013_csv(
@@ -399,7 +399,7 @@ def main():
             }
             print(f"  -> layout: unsplit | written: {written}")
 
-    manifest_path = dataset_root / "standardized" / "fer2013" / "fer2013_raw" / "manifest.json"
+    manifest_path = dataset_root / "standardized" / "ferplus" / "ferplus_raw" / "manifest.json"
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 
