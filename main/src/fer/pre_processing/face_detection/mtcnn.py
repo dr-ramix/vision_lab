@@ -41,10 +41,12 @@ class MTCNNFaceCropper:
         min_prob: float = 0.0,
         width_half: float = 1.3,
         device: Optional[str] = None,
+        crop_scale: float = 1.05, # BEEINFLUSST CROPPING REGION
     ):
         self.keep_all = keep_all
         self.min_prob = float(min_prob)
         self.width_half = float(width_half)
+        self.crop_scale = float(crop_scale)
 
         if device is None:
             device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -155,6 +157,7 @@ class MTCNNFaceCropper:
             mx = (rot_left[0] + rot_right[0]) / 2.0
             my = (rot_left[1] + rot_right[1]) / 2.0
             alpha = math.hypot(rot_right[0] - mx, rot_right[1] - my)
+            alpha = alpha * self.crop_scale # HIER MIT CROP SCALE MULTIPLIZIEREN
 
             x1 = mx - self.width_half * alpha
             x2 = mx + self.width_half * alpha

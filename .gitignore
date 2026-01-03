@@ -26,6 +26,12 @@ main/src/fer/dataset/standardized/ferplus/ferplus_raw/*
 main/src/fer/dataset/standardized/ferplus/ferplus_mtcnn_cropped_norm/*
 !main/src/fer/dataset/standardized/ferplus/ferplus_mtcnn_cropped_norm/.gitkeep
 
+main/src/fer/dataset/standardized/images_mtcnn_cropped/png/*
+!main/src/fer/dataset/standardized/images_mtcnn_cropped/png/.gitkeep
+
+main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/*
+!main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/.gitkeep
+
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)
 runs/
@@ -42,7 +48,9 @@ Thumbs.db
 .idea/
 
 # local split manifests
-src/fer/dataset/splits/*.json
+main/src/fer/dataset/splits/*.json
+
+main/src/fer/dataset/standardized/images_mtcnn_cropped/*.json
 
 
 results/

@@ -38,7 +38,7 @@
           "surprise": 1920
         }
       },
-      "written": 22629
+      "written": 0
     },
     "raf-db": {
       "layout": "train_test_dirs(+optional_validation)",
@@ -69,7 +69,7 @@
           "surprise": 329
         }
       },
-      "written": 12135
+      "written": 0
     },
     "ferplus": {
       "layout": "train_test_dirs(+optional_validation)",
@@ -81,7 +81,7 @@
           "fear": 8000,
           "happiness": 8000,
           "sadness": 8000,
-          "surprise": 0
+          "surprise": 8000
         },
         "val": {
           "anger": 1000,
@@ -89,7 +89,7 @@
           "fear": 1000,
           "happiness": 1000,
           "sadness": 1000,
-          "surprise": 0
+          "surprise": 1000
         },
         "test": {
           "anger": 322,
@@ -97,10 +97,10 @@
           "fear": 98,
           "happiness": 929,
           "sadness": 449,
-          "surprise": 0
+          "surprise": 450
         }
       },
-      "written": 46819
+      "written": 9450
     }
   }
 }
