@@ -1,6 +1,6 @@
-# ============================
+# ----------------------------
 # MobileNetV3 Large Modellsetup für Input mit 64x64
-# ============================
+# ----------------------------
 
 import torch.nn as nn
 from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
@@ -36,5 +36,5 @@ for p in model.features.parameters():
 # ----------------------------
 # Transform für 64x64 Input
 # ----------------------------
-# Wenn du Bilder einspeist, die nicht automatisch auf 64x64 skaliert werden:
+# Für Bilder, die nicht automatisch auf 64x64 skaliert werden:
 resize_transform = Resize((cfg.image_size, cfg.image_size))
