@@ -66,6 +66,7 @@ class ConvNextBlock(nn.Module):
 
 
 class LayerNorm(nn.Module):
+    """LayerNorm supporting channels_last (NHWC) and channels_first (NCHW) like Meta code."""
     def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
@@ -199,3 +200,189 @@ class ConvNeXtFERTiny(nn.Module):
 
         return x
             
+
+
+class ConvNeXtFERSmall(nn.Module):
+    def __init__(
+        self,
+        in_channels=3,
+        num_classes=6,
+        depths=[3, 3, 27, 3],
+        dims=[96, 192, 384, 768],
+        drop_path_rate=0.1,
+        layer_scale_init_value=1e-6,
+        head_init_scale=1.0,
+    ):
+        super().__init__()
+
+       .
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=dims[0], kernel_size=2, stride=2, padding=0),
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
+        )
+
+        self.downsample_layer_1 = nn.Sequential(
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[0], dims[1], kernel_size=2, stride=2, padding=0),
+        )
+        self.downsample_layer_2 = nn.Sequential(
+            LayerNorm(dims[1], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[1], dims[2], kernel_size=2, stride=2, padding=0),
+        )
+        self.downsample_layer_3 = nn.Sequential(
+            LayerNorm(dims[2], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[2], dims[3], kernel_size=2, stride=2, padding=0),
+        )
+
+       
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        cur = 0
+
+       
+        self.stage1 = nn.Sequential(
+            *[ConvNextBlock(dims[0], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[0])]
+        )
+        cur += depths[0]
+
+        self.stage2 = nn.Sequential(
+            *[ConvNextBlock(dims[1], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[1])]
+        )
+        cur += depths[1]
+
+        self.stage3 = nn.Sequential(
+            *[ConvNextBlock(dims[2], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[2])]
+        )
+        cur += depths[2]
+
+        self.stage4 = nn.Sequential(
+            *[ConvNextBlock(dims[3], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[3])]
+        )
+
+        self.final_ln = nn.LayerNorm(dims[-1], eps=1e-6)
+        self.head = nn.Linear(dims[-1], num_classes)
+
+        self.apply(self._init_weights)
+        self.head.weight.data.mul_(head_init_scale)
+        if self.head.bias is not None:
+            self.head.bias.data.mul_(head_init_scale)
+
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Conv2d, nn.Linear)):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.stem(x)
+
+        x = self.stage1(x)
+        x = self.downsample_layer_1(x)
+
+        x = self.stage2(x)
+        x = self.downsample_layer_2(x)
+
+        x = self.stage3(x)
+        x = self.downsample_layer_3(x)
+
+        x = self.stage4(x)
+
+        x = x.mean(dim=(2, 3))     
+        x = self.final_ln(x)
+        x = self.head(x)
+        return x
+
+
+class ConvNeXtFERBase(nn.Module):
+    def __init__(
+        self,
+        in_channels=3,
+        num_classes=6,
+        depths=[3, 3, 27, 3],
+        dims=[128, 256, 512, 1024],
+        drop_path_rate=0.15,
+        layer_scale_init_value=1e-6,
+        head_init_scale=1.0,
+    ):
+        super().__init__()
+
+        self.stem = nn.Sequential(
+            nn.Conv2d(in_channels=in_channels, out_channels=dims[0], kernel_size=2, stride=2, padding=0),
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
+        )
+
+        self.downsample_layer_1 = nn.Sequential(
+            LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[0], dims[1], kernel_size=2, stride=2, padding=0),
+        )
+        self.downsample_layer_2 = nn.Sequential(
+            LayerNorm(dims[1], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[1], dims[2], kernel_size=2, stride=2, padding=0),
+        )
+        self.downsample_layer_3 = nn.Sequential(
+            LayerNorm(dims[2], eps=1e-6, data_format="channels_first"),
+            nn.Conv2d(dims[2], dims[3], kernel_size=2, stride=2, padding=0),
+        )
+
+        dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths))]
+        cur = 0
+
+        self.stage1 = nn.Sequential(
+            *[ConvNextBlock(dims[0], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[0])]
+        )
+        cur += depths[0]
+
+        self.stage2 = nn.Sequential(
+            *[ConvNextBlock(dims[1], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[1])]
+        )
+        cur += depths[1]
+
+        self.stage3 = nn.Sequential(
+            *[ConvNextBlock(dims[2], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[2])]
+        )
+        cur += depths[2]
+
+        self.stage4 = nn.Sequential(
+            *[ConvNextBlock(dims[3], drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
+              for i in range(depths[3])]
+        )
+
+        self.final_ln = nn.LayerNorm(dims[-1], eps=1e-6)
+        self.head = nn.Linear(dims[-1], num_classes)
+
+        self.apply(self._init_weights)
+        self.head.weight.data.mul_(head_init_scale)
+        if self.head.bias is not None:
+            self.head.bias.data.mul_(head_init_scale)
+
+    def _init_weights(self, m):
+        if isinstance(m, (nn.Conv2d, nn.Linear)):
+            trunc_normal_(m.weight, std=0.02)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        x = self.stem(x)
+
+        x = self.stage1(x)
+        x = self.downsample_layer_1(x)
+
+        x = self.stage2(x)
+        x = self.downsample_layer_2(x)
+
+        x = self.stage3(x)
+        x = self.downsample_layer_3(x)
+
+        x = self.stage4(x)
+
+        x = x.mean(dim=(2, 3))
+        x = self.final_ln(x)
+        x = self.head(x)
+        return x
+
