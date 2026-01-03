@@ -81,4 +81,4 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python scripts/train.py model=coatnet_tiny epochs=30 bs=64 lr=3e-4
+python train.py model=coatnet_tiny epochs=100 bs=128 lr=6e-4

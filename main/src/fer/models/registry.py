@@ -86,3 +86,14 @@ register_model(
         in_channels=in_channels,
         ),
 )
+
+register_model(
+    "coatnet_tiny_1",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-1",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
