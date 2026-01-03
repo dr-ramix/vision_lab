@@ -2,13 +2,12 @@
 # MobileNetV2 Modellsetup für Input mit 64x64
 # ============================
 
-import torch
 import torch.nn as nn
 from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
 from torchvision.transforms import Resize
 
 # ----------------------------
-# Configuration
+# Konfiguration
 # ----------------------------
 cfg.image_size = 64 # Hier wird die Inputgröße auf 64x64 gesetzt
 
