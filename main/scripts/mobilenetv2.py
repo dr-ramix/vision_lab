@@ -40,4 +40,4 @@ for p in model.features.parameters():
 # Transform für 64x64 Input
 # ----------------------------
 # Für Bilder, die nicht automatisch auf 64x64 skaliert werden:
-resize_transform = Resize((cfg.image_size, cfg.image_size))
+resize_transform = Resize((image_size, image_size))
