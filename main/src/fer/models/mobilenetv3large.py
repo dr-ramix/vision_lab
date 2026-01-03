@@ -1,31 +1,31 @@
 # ============================
-# MobileNetV2 Modellsetup für Input mit 64x64
+# MobileNetV3 Large Modellsetup für Input mit 64x64
 # ============================
 
 import torch.nn as nn
-from torchvision.models import mobilenet_v2, MobileNet_V2_Weights
+from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
 from torchvision.transforms import Resize
 
 # ----------------------------
 # Konfiguration
 # ----------------------------
-cfg.image_size = 64 # Hier wird die Inputgröße auf 64x64 gesetzt
+cfg.image_size = 64  # Hier wird die Inputgröße auf 64x64 gesetzt
 
 # Sicherheitscheck für Klassen
 if cfg.num_classes != 6:
     raise ValueError("Your dataloader enforces exactly 6 classes (CLASS_ORDER).")
 
 # ----------------------------
-# Laden von MobileNetV2
+# Laden von MobileNetV3 Large
 # ----------------------------
-weights = MobileNet_V2_Weights.IMAGENET1K_V1  # vortrainierte ImageNet-Gewichte
-model = mobilenet_v2(weights=weights)
+weights = MobileNet_V3_Large_Weights.IMAGENET1K_V1  # vortrainierte ImageNet-Gewichte
+model = mobilenet_v3_large(weights=weights)
 
 # ----------------------------
 # Anpassen der Classifier
 # ----------------------------
-in_features = model.classifier[1].in_features
-model.classifier[1] = nn.Linear(in_features, cfg.num_classes)
+in_features = model.classifier[3].in_features  # bei MobileNetV3 Large ist der Linear Layer an Index 3
+model.classifier[3] = nn.Linear(in_features, cfg.num_classes)
 
 # ----------------------------
 # Backbone einfrieren
