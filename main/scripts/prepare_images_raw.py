@@ -47,37 +47,50 @@ def normalize_label(name: str) -> str | None:
     key = name.strip().lower()
     synonyms = {
         # anger
+        "Anger" : "anger",
         "anger": "anger",
         "angry": "anger",
+        "Angry" : "anger",
         "6": "anger",
 
         # disgust
         "disgust": "disgust",
+        "Disgust" : "disgust",
         "3": "disgust",
 
         # fear
         "fear": "fear",
+        "Fear" : "fear",
         "2": "fear",
 
         # happiness
         "happy": "happiness",
+        "Happy" : "happiness",
         "happiness": "happiness",
+        "Happiness" : "happiness",
         "4": "happiness",
 
         # sadness
         "sad": "sadness",
+        "Sad": "sadness",
         "sadness": "sadness",
+        "Sadness" : "sadness",
         "5": "sadness",
 
         # surprise
         "surprised": "surprise",
+        "Surprised": "surprise",
         "surprise": "surprise",
+        "Surprise": "surprise",
+        "suprise" : "surprise",
         "1": "surprise",
 
         # drop / ignore
         "neutral": None,
+        "Neutral": None,
         "7": None,
         "contempt": None,
+        "Contempt": None
     }
     return synonyms.get(key, key if key in STD_CLASSES else None)
 

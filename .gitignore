@@ -48,7 +48,9 @@ Thumbs.db
 .idea/
 
 # local split manifests
-src/fer/dataset/splits/*.json
+main/src/fer/dataset/splits/*.json
+
+main/src/fer/dataset/standardized/images_mtcnn_cropped/*.json
 
 
 results/
