@@ -68,17 +68,12 @@ try:
         print("GPU:", torch.cuda.get_device_name(0))
 except Exception as e:
     print("Torch check failed:", e)
-
-try:
-    import jax
-    print("JAX backend:", jax.default_backend())
-    print("JAX devices:", jax.devices())
-except Exception as e:
-    print("JAX not available (ok):", e)
 EOF
 echo "============================"
 
 # -----------------------------
 # Run training
 # -----------------------------
-python ./train_resnet18_model.py
+python train.py model=resnet18 epochs=30      
+
+
