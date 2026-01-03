@@ -26,7 +26,7 @@ model = mobilenet_v3_large(weights=weights)
 # Anpassen der Classifier
 # ----------------------------
 in_features = model.classifier[3].in_features  # bei MobileNetV3 Large ist der Linear Layer an Index 3
-model.classifier[3] = nn.Linear(in_features, cfg.num_classes)
+model.classifier[3] = nn.Linear(in_features, num_classes)
 
 # ----------------------------
 # Backbone einfrieren
@@ -38,4 +38,4 @@ for p in model.features.parameters():
 # Transform für 64x64 Input
 # ----------------------------
 # Für Bilder, die nicht automatisch auf 64x64 skaliert werden:
-resize_transform = Resize((cfg.image_size, cfg.image_size))
+resize_transform = Resize((image_size, image_size))
