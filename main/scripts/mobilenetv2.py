@@ -9,10 +9,13 @@ from torchvision.transforms import Resize
 # ----------------------------
 # Konfiguration
 # ----------------------------
-cfg.image_size = 64 # Hier wird die Inputgröße auf 64x64 gesetzt
+
+image_size = 64
+num_classes = 6
 
 # Sicherheitscheck für Klassen
-if cfg.num_classes != 6:
+
+if num_classes != 6:
     raise ValueError("Your dataloader enforces exactly 6 classes (CLASS_ORDER).")
 
 # ----------------------------
