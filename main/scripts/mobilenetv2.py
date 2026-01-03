@@ -28,7 +28,7 @@ model = mobilenet_v2(weights=weights)
 # Anpassen der Classifier
 # ----------------------------
 in_features = model.classifier[1].in_features
-model.classifier[1] = nn.Linear(in_features, cfg.num_classes)
+model.classifier[1] = nn.Linear(in_features, num_classes)
 
 # ----------------------------
 # Backbone einfrieren
