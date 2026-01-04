@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+
+import torch
+import torch.nn as nn
+from tqdm import tqdm
+
+# Dataloader
+from fer.dataset.dataloaders.dataloader_main import build_dataloaders, CLASS_ORDER
+
+# Modelle
+from fer.models.cnn_vanilla import CNNVanilla 
+from fer.models.cnn_resnet18 import ResNet18FER
+from fer.models.coatnet import CoAtNet
+from fer.models.convnext import ConvNeXtFERBase
+
+
+def class_label(logits: torch.Tensor) -> torch.Tensor:
+    return torch.argmax(logits, dim=1)
+
+
+
+def build_model(model_name: str, num_classes: int) -> nn.Module:
+    """
+    Austauschpunkt: hier kann später jemand ein anderes Modell anschließen.
+    """
+    name = model_name.lower()
+    # hier bei den modellen ggf mehr argumente als nur num_classes
+    if name == "cnnvanilla":
+        return CNNVanilla(num_classes=num_classes)
+    if name == "resnet18fer":
+        return ResNet18FER(num_classes=num_classes)
+    if name == "coatnet":
+        return CoAtNet(num_classes=num_classes) 
+    if name == "convnextferbase":
+        return ConvNeXtFERBase(num_classes=num_classes)
+    
+
+    raise ValueError(
+        f"Unknown model '{model_name}'. "
+        f"Implementiere es in build_model(...)."
+    )
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+
+    ap.add_argument(
+        "--images_root",
+        type=str,
+        default="main/src/fer/dataset/standardized/images_mtcnn_cropped",
+        help="Ordner, der den Unterordner 'npy/' enthält.",
+    )
+    ap.add_argument("--model", type=str, default="cnnvanilla")
+    ap.add_argument("--epochs", type=int, default=3)
+    ap.add_argument("--batch_size", type=int, default=64)
+    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--num_workers", type=int, default=4)
+
+    # PDF-Stil: use_gpu Flag
+    ap.add_argument("--use_gpu", action="store_true")
+
+    ap.add_argument("--save_path", type=str, default="outputs/model_state_dict.pt")
+    args = ap.parse_args()
+
+    # -------------------------------
+    # GPU (wie im PDF)
+    # -------------------------------
+    use_gpu = args.use_gpu and torch.cuda.is_available()
+
+    # -------------------------------
+    # DATALOADERS (dein API)
+    # -------------------------------
+    dls = build_dataloaders(
+        images_root=args.images_root,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        pin_memory=True,
+    )
+
+    train_dataloader = dls.train
+    val_dataloader = dls.val
+    test_dataloader = dls.test
+
+    # -------------------------------
+    # MODEL + OPTIM + LOSS
+    # -------------------------------
+    num_classes = len(CLASS_ORDER)
+    P = build_model(args.model, num_classes=num_classes)  # HIER KANN MAN STATT args.model DEN MODELLNAMEN ALS STRING SCHREIBEN
+
+    optimizer = torch.optim.Adam(P.parameters(), lr=args.lr)
+    criterion = torch.nn.CrossEntropyLoss()
+
+    if use_gpu:
+        P.cuda()
+        criterion.cuda()
+
+    losses = []
+
+    # -------------------------------
+    # TRAIN
+    # -------------------------------
+    for epoch in tqdm(range(args.epochs), desc="Epoch"):
+        for step, (example, label) in enumerate(tqdm(train_dataloader, desc="Batch", leave=False)):
+            if use_gpu:
+                example = example.cuda(non_blocking=True)
+                label = label.cuda(non_blocking=True)
+
+            optimizer.zero_grad()
+            prediction = P(example)
+            loss = criterion(prediction, label)
+            loss.backward()
+            optimizer.step()
+
+            losses.append(loss.item())
+
+        # -------------------------------
+        # VAL 
+        # -------------------------------
+        val_correct = 0
+        val_total = 0
+        val_loss = 0.0
+
+        with torch.no_grad():
+            for example, label in val_dataloader:
+                if use_gpu:
+                    example = example.cuda(non_blocking=True)
+                    label = label.cuda(non_blocking=True)
+
+                pred = P(example)
+                loss = criterion(pred, label)
+
+                val_loss += loss.item() * label.size(0)
+                pred_labels = class_label(pred)
+
+                val_correct += (pred_labels == label).sum().item()
+                val_total += label.size(0)
+
+        val_loss /= max(val_total, 1)
+        val_acc = val_correct / max(val_total, 1) * 100.0
+        print(f"\nval_loss={val_loss:.4f}  val_acc={val_acc:.2f}%")
+
+    # -------------------------------
+    # SAVE
+    # -------------------------------
+    save_path = Path(args.save_path)
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "model_state_dict": P.state_dict(),
+            "class_order": CLASS_ORDER,
+            "model_name": args.model,
+        },
+        save_path,
+    )
+    print(f"[saved] {save_path}")
+
+    # -------------------------------
+    # TEST 
+    # -------------------------------
+    test_correct = 0
+    test_total = 0
+    test_loss = 0.0
+
+    with torch.no_grad():
+        for example, label in test_dataloader:
+            if use_gpu:
+                example = example.cuda(non_blocking=True)
+                label = label.cuda(non_blocking=True)
+
+            pred = P(example)
+            loss = criterion(pred, label)
+
+            test_loss += loss.item() * label.size(0)
+            pred_labels = class_label(pred)
+            test_correct += (pred_labels == label).sum().item()
+            test_total += label.size(0)
+
+    test_loss /= max(test_total, 1)
+    test_acc = test_correct / max(test_total, 1) * 100.0
+    print(f"test_loss={test_loss:.4f}  test_acc={test_acc:.2f}%")
+
+
+if __name__ == "__main__":
+    main()
