@@ -101,7 +101,7 @@ class ConvNeXtFERTiny(nn.Module):
      Input:  (N, C, H, W)
      Output: (N, num_classes)
     """
-    def __init__(self, in_channels = 3, num_classes=6, depths=[3, 3, 9, 3], 
+    def __init__ (self, in_channels = 3, num_classes=6, depths=[3, 3, 9, 3], 
                 dims=[96, 192, 384, 768], drop_path_rate=0.1 , layer_scale_init_value=1e-6, head_init_scale=1.): 
         """
         Initializes the ConvNeXtFER architecture.
@@ -214,8 +214,6 @@ class ConvNeXtFERSmall(nn.Module):
         head_init_scale=1.0,
     ):
         super().__init__()
-
-       .
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels=in_channels, out_channels=dims[0], kernel_size=2, stride=2, padding=0),
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
