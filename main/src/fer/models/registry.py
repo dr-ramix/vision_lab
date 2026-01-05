@@ -203,7 +203,7 @@ register_model(
     ),
 )
 
-egister_model(
+register_model(
     "emocatnet_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
         size="tiny",
