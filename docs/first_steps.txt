@@ -1,71 +1,42 @@
 1. Datensätze herunterladen
 
-Lade die folgenden Datensätze manuell von den offiziellen Quellen herunter:
+Im Terminal in diesem Verzeichnis sein:
+~/vision_lab/vision_lab/main/scripts
 
-- FER2013 : https://www.kaggle.com/datasets/msambare/fer2013
-- AffectNet : https://www.kaggle.com/datasets/mstjebashazida/affectnet
+Job abschicken mit diesem Befehl:
+sbatch download_sources.slurm
 
+Erwartete Ausgabe:
+Submitted batch job <job-ID>
 
-2. Erwartete Ordnerstruktur der Datensätze
+Job-Status überprüfen mit diesem Befehl:
+squeue -u $USER
 
-Stelle sicher, dass jeder Datensatz folgende Struktur hat:
+-> Beispiel Ausgabe:
+JOBID    PARTITION   NAME               ST   TIME           NODES NODELIST
+123456   NvidiaAll   download_sources   R    00:02:31 1     node42
 
-FER2013/
-  train/
-    anger/
-    disgust/
-    fear/
-    happiness/
-    sadness/
-    surprise/
-  test/
-    anger/
-    disgust/
-    fear/
-    happiness/
-    sadness/
-    surprise/
+Status (ST):
+PD → pending (wartet)
+R → running (läuft)
+CG → finishing
+weg → fertig (nicht mehr in Queue)
 
-AffectNet/
-  train/
-    anger/
-    disgust/
-    fear/
-    happiness/
-    sadness/
-    surprise/
-  test/
-    anger/
-    disgust/
-    fear/
-    happiness/
-    sadness/
-    surprise/
-  labels.csv   (optional, wird aktuell nicht benötigt)
-
-- Falls eine labels.csv existiert (z. B. bei AffectNet), muss sie nicht entfernt werden.
-- Das Pre-Processing-Skript nutzt die Ordnerstruktur, nicht CSV-Labels.
+Sobald ST = CG oder weg, weiter zu Schritt 2.
 
 
-3. Datensätze unter sources/ einfügen
 
-Lege beide Datensätze als Unterordner von main/src/fer/dataset/sources/ ab:
-
-sources/
-  FER2013/
-    train/
-    test/
-  AffectNet/
-    train/
-    test/
-    labels.csv
-
-
-4. images_raw erzeugen
+2. images_raw erzeugen
 
 Nun werden alle Datensätze in eine einheitliche Projektstruktur überführt.
 
-Führe das Script 'prepare_images_raw.py' unter main/scripts/ aus.
+Schritte (analog zu 1):
+
+cd ~/vision_lab/vision_lab/main/scripts
+sbatch prepare_images_raw.slurm
+
+Sobald ST = CG oder weg, weiter zu Schritt 3.
+
 
 Was das Script macht:
 
@@ -85,11 +56,15 @@ images_raw/
 images_raw ist die Datenbasis für alle weiteren Schritte.
 
 
-5. MTCNN + Cropping + Normalisierung ausführen
+
+3. MTCNN + Cropping + Normalisierung ausführen
 
 Jetzt wird das eigentliche Gesichts-Pre-Processing durchgeführt.
 
-Führe das Script 'run_mtcnn_crop_norm.py' unter main/scripts/ aus.
+Schritte (analog zu 1 & 2):
+cd ~/vision_lab/vision_lab/main/scripts
+sbatch run_mtcnn_cropped.slurm
+
 
 Was dieses Script macht:
 
@@ -97,13 +72,21 @@ Was dieses Script macht:
 - führt aus:
   ~ MTCNN Gesichtserkennung
   ~ Augenbasierte Rotation
-  ~ Paper-Crop-Formel
+  ~ Cropping
   ~ Resize auf 64×64
-  ~ Intensity Normalization (Paper-Style)
+  ~ Z-Normalisierung
   ~ überschreibt vorhandene Ergebnisse bewusst, falls sie existieren
 - Ergebnis:
 
-images_mtcnn_cropped_norm/
+images_mtcnn_cropped/npy
+  train/
+    <emotion>/
+  val/
+    <emotion>/
+  test/
+    <emotion>/
+
+images_mtcnn_cropped/png
   train/
     <emotion>/
   val/
