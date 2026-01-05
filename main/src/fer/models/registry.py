@@ -6,6 +6,10 @@ import torch.nn as nn
 from fer.models.cnn_resnet18 import ResNet18FER
 from fer.models.cnn_vanilla import CNNVanilla
 from fer.models.coatnet import CoAtNet
+from fer.models.cnn_resnet50 import ResNet50FER
+from fer.models.convnext import convnextfer
+from fer.models.emonext import emonext_fer
+from fer.models.emocatnets import emocatnets_fer
 
 # ------------------------------------------------------------
 # Model registry
@@ -72,6 +76,14 @@ register_model(
 )
 
 register_model(
+    "resnet50",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet50FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
     "cnn_vanilla",
     lambda num_classes, **_: CNNVanilla(num_classes=num_classes),
 )
@@ -96,4 +108,142 @@ register_model(
         num_classes=num_classes,
         in_channels=in_channels,
         ),
+)
+
+
+
+register_model(
+    "convnext_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnext_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnext_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnext_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnext_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+register_model(
+    "emonext_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emonext_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emonext_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emonext_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emonext_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emonext_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emonext_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emonext_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emonext_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emonext_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+egister_model(
+    "emocatnet_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnets_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnets_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnets_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnet_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
 )
