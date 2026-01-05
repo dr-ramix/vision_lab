@@ -81,10 +81,27 @@ def compute_train_mean_std(
                 channel_sum_sq += (x ** 2).sum(axis=(0, 1))
                 n_pixels += h * w
 
-    mean = channel_sum / max(n_pixels, 1)
-    std = np.sqrt(channel_sum_sq / max(n_pixels, 1) - mean ** 2)
+    # --- harte Validierung ---
+    if n_pixels == 0:
+        raise RuntimeError(
+            "compute_train_mean_std: n_pixels == 0. "
+            "Es wurden keine gültigen Train-Crops gezählt (MTCNN findet evtl. nichts "
+            "oder Pfade stimmen nicht). Mean/Std wären sonst (0,0,0)."
+        )
+
+    mean = channel_sum / n_pixels
+    var = channel_sum_sq / n_pixels - mean ** 2
+
+    # numerische Sicherheit: var kann minimal negativ werden durch Rundung
+    var = np.maximum(var, 0.0)
+    std = np.sqrt(var)
+
+    # --- std darf nicht 0 sein ---
+    eps = 1e-6
+    std = np.maximum(std, eps)
 
     return tuple(mean.tolist()), tuple(std.tolist())
+
 
 
 def normalize_gray3(
@@ -100,11 +117,17 @@ def normalize_gray3(
     x = gray3_u8.astype(np.float32) / 255.0
     mean_arr = np.asarray(mean, dtype=np.float32).reshape(1, 1, 3)
     std_arr = np.asarray(std, dtype=np.float32).reshape(1, 1, 3)
+
+    # --- extra Schutz (falls std aus JSON o.ä. kaputt ist) ---
+    eps = np.float32(1e-6)
+    std_arr = np.maximum(std_arr, eps)
+
     x = (x - mean_arr) / std_arr
 
     if to_chw:
         x = np.transpose(x, (2, 0, 1))  # (3,H,W)
     return x.astype(np.float32, copy=False)
+
 
 
 def run_preprocessing(
