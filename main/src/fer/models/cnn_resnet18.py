@@ -53,10 +53,6 @@ class ResBlock(nn.Module):
         out = self.relu(out)
         return out
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
 
 
 
