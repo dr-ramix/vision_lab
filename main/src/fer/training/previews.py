@@ -76,19 +76,28 @@ def tensor_to_rgb_uint8(
     train_mean: Optional[Sequence[float]] = None,
     train_std: Optional[Sequence[float]] = None,
     clamp: Tuple[float, float] = (0.0, 1.0),
+    auto_detect_norm: bool = True,
 ) -> np.ndarray:
     """
-    Convert (C,H,W) normalized tensor to RGB uint8 image (H,W,3).
-    If train_mean/std provided: undo normalization (x*std + mean) before clamping.
+    Convert (C,H,W) tensor to RGB uint8 image (H,W,3).
 
-    This matches your preprocessing:
-      gray3_u8 -> x in [0,1] -> (x - mean) / std
-    so we invert it back to [0,1] then clamp.
+    If train_mean/std provided: undo normalization (x*std + mean) before clamping.
+    BUT: if auto_detect_norm=True, we detect if tensor already looks like [0,1]
+    and skip unnormalization to avoid double-inversion (common when previewing PNG pipelines).
     """
     img = img_t.detach().float()
     img = _to_3c(img)
 
-    if train_mean is not None and train_std is not None:
+    do_unnorm = (train_mean is not None and train_std is not None)
+
+    if do_unnorm and auto_detect_norm:
+        # Heuristic: if it already looks like [0,1], don't unnormalize
+        mn = float(img.min())
+        mx = float(img.max())
+        if mn >= -0.05 and mx <= 1.05:
+            do_unnorm = False
+
+    if do_unnorm:
         img = _unnormalize_mean_std(img, train_mean, train_std)
 
     lo, hi = float(clamp[0]), float(clamp[1])
@@ -96,7 +105,6 @@ def tensor_to_rgb_uint8(
 
     img_np = (img.permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8)
     return img_np
-
 
 # ============================================================
 # Matplotlib saving helpers

@@ -74,6 +74,6 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py model=resnet18 epochs=3   
+python train.py model=resnet18 epochs=1 
 
 
