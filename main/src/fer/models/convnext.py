@@ -90,7 +90,7 @@ class LayerNorm(nn.Module):
 
 
 class ConvNeXtFERTiny(nn.Module):
-     """
+    """
      ConvNeXt-based CNN adapted for small images.
 
      Uses depthwise convolutions, LayerNorm, MLP-style pointwise layers,

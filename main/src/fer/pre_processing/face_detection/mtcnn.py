@@ -41,7 +41,7 @@ class MTCNNFaceCropper:
         min_prob: float = 0.0,
         width_half: float = 1.3,
         device: Optional[str] = None,
-        crop_scale: float = 1.05, # BEEINFLUSST CROPPING REGION
+        crop_scale: float = 1.40, # BEEINFLUSST CROPPING REGION
     ):
         self.keep_all = keep_all
         self.min_prob = float(min_prob)

@@ -287,7 +287,7 @@ class EmoNeXtFERTiny(nn.Module):
             _, attn = self.attention(x_tokens)       # (B, 16, 16)
             return logits, attn
 
-        return logits
+        return logits, attn
 
 
 def compute_loss_emonext(logits, labels, attn, lambda_sa=1.0):

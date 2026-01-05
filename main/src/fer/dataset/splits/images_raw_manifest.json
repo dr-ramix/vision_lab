@@ -38,7 +38,7 @@
           "surprise": 1920
         }
       },
-      "written": 0
+      "written": 22629
     },
     "raf-db": {
       "layout": "train_test_dirs(+optional_validation)",
@@ -69,7 +69,7 @@
           "surprise": 329
         }
       },
-      "written": 0
+      "written": 12135
     },
     "ferplus": {
       "layout": "train_test_dirs(+optional_validation)",
@@ -100,7 +100,7 @@
           "surprise": 450
         }
       },
-      "written": 9450
+      "written": 56269
     }
   }
 }
