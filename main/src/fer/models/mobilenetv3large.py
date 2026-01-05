@@ -1,41 +1,135 @@
-# ----------------------------
-# MobileNetV3 Large Modellsetup für Input mit 64x64
-# ----------------------------
 
 import torch.nn as nn
-from torchvision.models import mobilenet_v3_large, MobileNet_V3_Large_Weights
-from torchvision.transforms import Resize
+import torch.nn.functional as F
 
 # ----------------------------
-# Konfiguration
+# Aktivierungsfunktionen
 # ----------------------------
-image_size = 64
-num_classes = 6
 
-# Sicherheitscheck
-if num_classes != 6:
-    raise ValueError("Your dataloader enforces exactly 6 classes (CLASS_ORDER).")
+class HSwish(nn.Module):
+    def forward(self, x):
+        return x * F.relu6(x + 3, inplace=True) / 6
 
-# ----------------------------
-# Laden von MobileNetV3 Large
-# ----------------------------
-weights = MobileNet_V3_Large_Weights.IMAGENET1K_V1  # vortrainierte ImageNet-Gewichte
-model = mobilenet_v3_large(weights=weights)
+
+class HSigmoid(nn.Module):
+    def forward(self, x):
+        return F.relu6(x + 3, inplace=True) / 6
+
 
 # ----------------------------
-# Anpassen der Classifier
+# Squeeze-and-Excitation Block
 # ----------------------------
-in_features = model.classifier[3].in_features  # bei MobileNetV3 Large ist der Linear Layer an Index 3
-model.classifier[3] = nn.Linear(in_features, num_classes)
+
+class SEBlock(nn.Module):
+    def __init__(self, channels, reduction=4):
+        super().__init__()
+        self.fc1 = nn.Conv2d(channels, channels // reduction, 1)
+        self.fc2 = nn.Conv2d(channels // reduction, channels, 1)
+        self.act = HSigmoid()
+
+    def forward(self, x):
+        scale = F.adaptive_avg_pool2d(x, 1)
+        scale = F.relu(self.fc1(scale), inplace=True)
+        scale = self.act(self.fc2(scale))
+        return x * scale
+
 
 # ----------------------------
-# Backbone einfrieren
+# Inverted Residual Block (V3)
 # ----------------------------
-for p in model.features.parameters():
-    p.requires_grad = False
+
+class InvertedResidual(nn.Module):
+    def __init__(self, inp, oup, kernel, stride, expand, use_se, use_hs):
+        super().__init__()
+        hidden_dim = int(inp * expand)
+        self.use_residual = stride == 1 and inp == oup
+
+        activation = HSwish() if use_hs else nn.ReLU(inplace=True)
+
+        layers = []
+
+        # Expansion
+        if expand != 1:
+            layers += [
+                nn.Conv2d(inp, hidden_dim, 1, bias=False),
+                nn.BatchNorm2d(hidden_dim),
+                activation,
+            ]
+
+        # Depthwise
+        layers += [
+            nn.Conv2d(hidden_dim, hidden_dim, kernel, stride,
+                      kernel // 2, groups=hidden_dim, bias=False),
+            nn.BatchNorm2d(hidden_dim),
+            activation,
+        ]
+
+        # SE
+        if use_se:
+            layers.append(SEBlock(hidden_dim))
+
+        # Projection
+        layers += [
+            nn.Conv2d(hidden_dim, oup, 1, bias=False),
+            nn.BatchNorm2d(oup),
+        ]
+
+        self.block = nn.Sequential(*layers)
+
+    def forward(self, x):
+        if self.use_residual:
+            return x + self.block(x)
+        return self.block(x)
+
 
 # ----------------------------
-# Transform für 64x64 Input
+# MobileNetV3 Large
 # ----------------------------
-# Für Bilder, die nicht automatisch auf 64x64 skaliert werden:
-resize_transform = Resize((image_size, image_size))
+
+class MobileNetV3Large(nn.Module):
+    def __init__(self, num_classes=6):
+        super().__init__()
+
+        # Stem
+        self.stem = nn.Sequential(
+            nn.Conv2d(3, 16, 3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(16),
+            HSwish()
+        )
+
+        # Feature blocks (official V3 Large config)
+        self.features = nn.Sequential(
+            InvertedResidual(16,  16, 3, 1, 1,   False, False),
+            InvertedResidual(16,  24, 3, 2, 4,   False, False),
+            InvertedResidual(24,  24, 3, 1, 3,   False, False),
+            InvertedResidual(24,  40, 5, 2, 3,   True,  False),
+            InvertedResidual(40,  40, 5, 1, 3,   True,  False),
+            InvertedResidual(40,  40, 5, 1, 3,   True,  False),
+            InvertedResidual(40,  80, 3, 2, 6,   False, True),
+            InvertedResidual(80,  80, 3, 1, 2.5, False, True),
+            InvertedResidual(80,  80, 3, 1, 2.3, False, True),
+            InvertedResidual(80, 112, 3, 1, 6,   True,  True),
+            InvertedResidual(112,112, 3, 1, 6,   True,  True),
+            InvertedResidual(112,160, 5, 2, 6,   True,  True),
+            InvertedResidual(160,160, 5, 1, 6,   True,  True),
+            InvertedResidual(160,160, 5, 1, 6,   True,  True),
+        )
+
+        # Head
+        self.head = nn.Sequential(
+            nn.Conv2d(160, 960, 1, bias=False),
+            nn.BatchNorm2d(960),
+            HSwish(),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Conv2d(960, 1280, 1),
+            HSwish()
+        )
+
+        self.classifier = nn.Linear(1280, num_classes)
+
+    def forward(self, x):
+        x = self.stem(x)
+        x = self.features(x)
+        x = self.head(x)
+        x = x.view(x.size(0), -1)
+        return self.classifier(x)
