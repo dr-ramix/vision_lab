@@ -6,6 +6,8 @@ __pycache__/
 venv/
 .env
 
+
+
 # Raw data (never share)
 data/
 datasets/
@@ -58,3 +60,6 @@ results/
 *.ckpt
 *.pth
 main/src/fer/dataset/splits/images_raw_manifest.json
+
+
+*.out
