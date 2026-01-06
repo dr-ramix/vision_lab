@@ -20,3 +20,5 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-05_23-57-03__emocatnet_tiny__user-hosseinis__e30877,emocatnet_tiny,accuracy,0.7308268628252281,0.689432302771855,hosseinis,2026-01-06T06:26:49
 2026-01-05_23-58-54__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7411796757934886,0.7094216417910447,hosseinis,2026-01-06T07:11:38
 2026-01-06_00-08-37__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7609317531671435,0.720815565031983,hosseinis,2026-01-06T11:51:05
+2026-01-06_09-43-00__convnext_tiny__user-hosseinis__e30877,convnext_tiny,accuracy,0.7406347909004223,0.6974946695095949,hosseinis,2026-01-06T14:32:51
+2026-01-06_09-31-36__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.7884484402669936,0.7398054371002132,hosseinis,2026-01-06T15:24:43

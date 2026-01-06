@@ -32,6 +32,8 @@ from fer.training.artifacts import (
     Timer,
     write_json,
 )
+from fer.training.losses import build_criterion as losses_build_criterion
+from fer.training.losses import EmoNeXtLoss
 
 from fer.training.augment import apply_mixup, apply_cutmix, mixed_criterion
 
@@ -117,7 +119,14 @@ def run_training(settings) -> Path:
     # -------------------------
     criterion, class_weights = _build_criterion(settings, loaders["train"], device, num_classes=num_classes)
     if class_weights is not None:
-        write_json(run_dir / "metrics" / "class_weights.json", {"weights": class_weights.tolist()})
+        # robust saving (np.ndarray / torch.Tensor / list)
+        if isinstance(class_weights, np.ndarray):
+            weights_out = class_weights.tolist()
+        elif isinstance(class_weights, torch.Tensor):
+            weights_out = class_weights.detach().cpu().tolist()
+        else:
+            weights_out = list(class_weights)
+        write_json(run_dir / "metrics" / "class_weights.json", {"weights": weights_out})
 
     optimizer = _build_optimizer(settings, model)
     scheduler = _build_scheduler(settings, optimizer)
@@ -369,19 +378,62 @@ def _build_criterion(
     *,
     num_classes: int,
 ) -> Tuple[nn.Module, Optional[np.ndarray]]:
-    loss_name = str(getattr(settings, "loss", "ce")).strip().lower()
-    use_w = bool(getattr(settings, "class_weight", True))
-    label_smoothing = float(getattr(settings, "label_smoothing", 0.0))
+    crit, weight_t = losses_build_criterion(settings, train_loader, device, num_classes=num_classes)
+    if weight_t is None:
+        return crit, None
+    # be robust if losses.py ever returns np.ndarray/list in future
+    if isinstance(weight_t, torch.Tensor):
+        return crit, weight_t.detach().cpu().numpy()
+    if isinstance(weight_t, np.ndarray):
+        return crit, weight_t
+    return crit, np.asarray(weight_t, dtype=np.float32)
 
-    weight_t: Optional[torch.Tensor] = None
-    if use_w:
-        weight_t = _compute_class_weights(train_loader, num_classes=num_classes).to(device)
 
-    if loss_name in {"ce", "crossentropy", "cross_entropy"}:
-        crit = nn.CrossEntropyLoss(weight=weight_t, label_smoothing=label_smoothing)
-        return crit, (weight_t.detach().cpu().numpy() if weight_t is not None else None)
+def _split_model_output(out):
+    """
+    Supports:
+      - logits
+      - (logits, extra)
+      - {"logits": ..., "extra": ...}
+    Returns: (logits, extra_or_none)
+    """
+    if isinstance(out, tuple) and len(out) == 2:
+        return out[0], out[1]
+    if isinstance(out, dict) and "logits" in out:
+        return out["logits"], out.get("extra", None)
+    return out, None
 
-    raise ValueError(f"Unknown loss '{loss_name}'. Use: ce")
+
+def _criterion_forward(criterion: nn.Module, logits: torch.Tensor, targets: torch.Tensor, extra: Optional[dict]):
+    """
+    Calls criterion with extra if supported (EmoNeXtLoss), otherwise plain.
+    """
+    if extra is not None and isinstance(criterion, EmoNeXtLoss):
+        return criterion(logits, targets, extra=extra)
+    return criterion(logits, targets)
+
+
+def _mixed_criterion_forward(
+    criterion: nn.Module,
+    logits: torch.Tensor,
+    y_a: torch.Tensor,
+    y_b: torch.Tensor,
+    lam: float,
+    extra: Optional[dict],
+):
+    """
+    MixUp/CutMix loss that still supports EmoNeXtLoss(reg).
+    """
+    if isinstance(criterion, EmoNeXtLoss):
+        # mix CE part
+        loss = lam * criterion.ce(logits, y_a) + (1.0 - lam) * criterion.ce(logits, y_b)
+        # add reg if present
+        if extra is not None and "reg" in extra:
+            loss = loss + criterion.lam * extra["reg"]
+        return loss
+
+    # fallback for normal CE etc.
+    return mixed_criterion(criterion, logits, y_a, y_b, lam)
 
 
 def _build_optimizer(settings, model: nn.Module) -> torch.optim.Optimizer:
@@ -506,11 +558,14 @@ def _train_loop(
     else:
         scaler = _make_grad_scaler_robust(use_amp)
 
+    # Engine may not support (logits, extra) outputs / criteria needing extra.
+    use_engine = bool(_ENGINE_OK and engine_train_one_epoch is not None and not isinstance(criterion, EmoNeXtLoss))
+
     _print_epoch_header()
 
     for epoch in range(1, epochs + 1):
         # -------- train --------
-        if _ENGINE_OK and engine_train_one_epoch is not None:
+        if use_engine:
             # engine should accept scaler if you updated it; if not, it will ignore via **kwargs
             train_loss = float(
                 engine_train_one_epoch(
@@ -642,7 +697,7 @@ def _train_loop(
         "val_score": best_val_score,
         "metric_name": metric_name,
         "state": best_state,
-        "engine_used": bool(_ENGINE_OK),
+        "engine_used": bool(use_engine),
     }
 
 
@@ -732,11 +787,15 @@ def _train_one_epoch_basic(
                 mixed = True
 
         with torch.amp.autocast(device_type="cuda", enabled=use_amp):
-            logits = model(xb)
+            out = model(xb)
+            logits, extra = _split_model_output(out)
+
             if mixed:
-                loss = mixed_criterion(criterion, logits, y_a, y_b, lam)
+                if y_a is None or y_b is None:
+                    raise RuntimeError("MixUp/CutMix set mixed=True but y_a/y_b is None.")
+                loss = _mixed_criterion_forward(criterion, logits, y_a, y_b, lam, extra)
             else:
-                loss = criterion(logits, yb)
+                loss = _criterion_forward(criterion, logits, yb, extra)
 
         if scaler is not None:
             scaler.scale(loss).backward()
@@ -780,8 +839,9 @@ def _evaluate_full(
         xb = xb.to(device, non_blocking=True)
         yb = yb.to(device, non_blocking=True)
 
-        logits = model(xb)
-        loss = criterion(logits, yb)
+        out = model(xb)
+        logits, extra = _split_model_output(out)
+        loss = _criterion_forward(criterion, logits, yb, extra)
 
         bs = xb.size(0)
         total_loss += float(loss.item()) * bs
@@ -856,7 +916,18 @@ def _save_history(run_dir: Path, history: List[Dict[str, Any]]) -> None:
     write_json(logs_dir / "history_wrapped.json", {"history": history})
 
     # csv
-    cols = ["epoch", "lr", "train_loss", "val_loss", "val_acc", "val_f1_macro", "val_score", "select_metric", "best", "patience_left"]
+    cols = [
+        "epoch",
+        "lr",
+        "train_loss",
+        "val_loss",
+        "val_acc",
+        "val_f1_macro",
+        "val_score",
+        "select_metric",
+        "best",
+        "patience_left",
+    ]
     csv_path = logs_dir / "history.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=cols)

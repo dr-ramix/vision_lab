@@ -1,9 +1,9 @@
+# main/src/fer/training/losses.py
+
 from __future__ import annotations
-from dataclasses import dataclass
 from typing import Optional, Tuple
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 # ---- EmoNeXt custom loss skeleton ----
 class EmoNeXtLoss(nn.Module):
@@ -14,10 +14,8 @@ class EmoNeXtLoss(nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor, extra: Optional[dict] = None) -> torch.Tensor:
         loss = self.ce(logits, targets)
-
         if extra is not None and "reg" in extra:
             loss = loss + self.lam * extra["reg"]
-
         return loss
 
 
@@ -31,11 +29,11 @@ def compute_class_weights(train_loader, num_classes: int) -> torch.Tensor:
     return inv / inv.mean()
 
 
-def build_criterion(settings, train_loader, device: torch.device, num_classes: int) -> Tuple[nn.Module, Optional[list]]:
+def build_criterion(settings, train_loader, device: torch.device, num_classes: int) -> Tuple[nn.Module, Optional[torch.Tensor]]:
     use_w = bool(getattr(settings, "class_weight", True))
     label_smoothing = float(getattr(settings, "label_smoothing", 0.0))
 
-    w = None
+    w: Optional[torch.Tensor] = None
     if use_w:
         w = compute_class_weights(train_loader, num_classes=num_classes).to(device)
 
@@ -46,5 +44,4 @@ def build_criterion(settings, train_loader, device: torch.device, num_classes: i
     else:
         crit = nn.CrossEntropyLoss(weight=w, label_smoothing=label_smoothing)
 
-    weights_list = w.detach().cpu().tolist() if w is not None else None
-    return crit, weights_list
+    return crit, w
