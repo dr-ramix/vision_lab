@@ -74,9 +74,9 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py model=emocatnets_large epochs=300 bs=64 optimizer=adamw lr=3e-4 weight_decay=5e-2 \
-  scheduler=warmup_cosine warmup_epochs=5 min_lr=1e-6 amp=true grad_clip=1.0 early_stop=25 \
-  class_weight=true label_smoothing=0.1 \
+python train.py model=emocatnets_large epochs=450 bs=512 optimizer=adamw lr=1e-4 weight_decay=5e-2 \
+  scheduler=warmup_cosine warmup_epochs=10 min_lr=1e-6 amp=true grad_clip=1.0 early_stop=60 \
+  class_weight=true label_smoothing=0.05 \
   mix_prob=0.0 mixup_alpha=0.0 cutmix_alpha=0.0 \
   ema=true ema_decay=0.9999 eval_with_ema=true
 
