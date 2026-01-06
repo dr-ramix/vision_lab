@@ -33,6 +33,7 @@ main/src/fer/dataset/standardized/images_mtcnn_cropped/png/*
 
 main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/*
 !main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/.gitkeep
+!main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/.dataset_stats_train.json
 
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)
@@ -52,7 +53,7 @@ Thumbs.db
 # local split manifests
 main/src/fer/dataset/splits/*.json
 
-main/src/fer/dataset/standardized/images_mtcnn_cropped/*.json
+
 
 
 results/
@@ -67,3 +68,8 @@ main/src/fer/dataset/splits/images_raw_manifest.json
 out/linecounter.txt
 out/linecounter.json
 
+
+# demo
+demo/kaggle_videos
+demo/download_kaggle_videos.py
+demo/kaggle_video_out/
