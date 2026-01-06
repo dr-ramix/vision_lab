@@ -63,3 +63,7 @@ main/src/fer/dataset/splits/images_raw_manifest.json
 
 
 *.out
+# generated output
+out/linecounter.txt
+out/linecounter.json
+
