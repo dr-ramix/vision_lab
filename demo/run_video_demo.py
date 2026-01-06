@@ -14,9 +14,9 @@
 #       --model "fer.models.cnn_vanilla:ConvolutionalNetwork"
 #
 #   (2) With weights if available:
-#   python demo/run_video_emotion_saliency.py --video_in demo/kaggle_videos/xyz.mp4 \
-#       --model "fer.models.cnn_vanilla:ConvolutionalNetwork" \
-#       --weights checkpoints/best.pt
+#   python demo/run_video_demo.py --video_in demo/kaggle_videos/3.mp4 \
+#       --model "fer.models.cnn_resnet50:ResNet50FER" \
+#       --weights training_output/runs/2026-01-06_13-14-27__resnet50__user-bargozideh__e30877/exports/model_state_dict.pt
 #
 #   (3) Explicit output path:
 #   python demo/run_video_emotion_saliency.py --video_in demo/kaggle_videos/xyz.mp4 \
@@ -352,9 +352,12 @@ def main() -> int:
             face_rgb = np.array(face_pil)  # 64x64x3 RGB uint8
             face_bgr = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2BGR)
 
-            # ---- model input
-            face_rgb01 = (face_rgb.astype(np.float32) / 255.0).clip(0.0, 1.0)
-            x = normalize_to_tensor(face_rgb01).to(device)
+            # ---- model input (match training: grayscale -> 3ch -> mean/std)
+            gray_u8 = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)              # (64,64) uint8
+            gray3_u8 = np.stack([gray_u8, gray_u8, gray_u8], axis=-1)         # (64,64,3) uint8
+
+            gray3_01 = (gray3_u8.astype(np.float32) / 255.0).clip(0.0, 1.0)   # float [0,1]
+            x = normalize_to_tensor(gray3_01).to(device)
 
             # ---- predict (needs grads for saliency)
             model.zero_grad(set_to_none=True)
