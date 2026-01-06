@@ -1,50 +1,42 @@
+# main/src/fer/models/mobilenetv3.py
+from __future__ import annotations
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ----------------------------
-# Aktivierungsfunktionen
-# ----------------------------
 
 class HSwish(nn.Module):
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * F.relu6(x + 3, inplace=True) / 6
 
 
 class HSigmoid(nn.Module):
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return F.relu6(x + 3, inplace=True) / 6
 
 
-# ----------------------------
-# Squeeze-and-Excitation Block
-# ----------------------------
-
 class SEBlock(nn.Module):
-    def __init__(self, channels, reduction=4):
+    def __init__(self, channels: int, reduction: int = 4):
         super().__init__()
         self.fc1 = nn.Conv2d(channels, channels // reduction, 1)
         self.fc2 = nn.Conv2d(channels // reduction, channels, 1)
         self.act = HSigmoid()
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         scale = F.adaptive_avg_pool2d(x, 1)
         scale = F.relu(self.fc1(scale), inplace=True)
         scale = self.act(self.fc2(scale))
         return x * scale
 
 
-# ----------------------------
-# Inverted Residual Block (V3)
-# ----------------------------
-
-class InvertedResidual(nn.Module):
-    def __init__(self, inp, oup, kernel, stride, expand, use_se, use_hs):
+class InvertedResidualV3(nn.Module):
+    def __init__(self, inp: int, oup: int, kernel: int, stride: int, expand: float, use_se: bool, use_hs: bool):
         super().__init__()
-        hidden_dim = int(inp * expand)
-        self.use_residual = stride == 1 and inp == oup
+        hidden_dim = int(round(inp * expand))
+        self.use_residual = (stride == 1 and inp == oup)
 
-        activation = HSwish() if use_hs else nn.ReLU(inplace=True)
+        activation: nn.Module = HSwish() if use_hs else nn.ReLU(inplace=True)
 
         layers = []
 
@@ -58,8 +50,7 @@ class InvertedResidual(nn.Module):
 
         # Depthwise
         layers += [
-            nn.Conv2d(hidden_dim, hidden_dim, kernel, stride,
-                      kernel // 2, groups=hidden_dim, bias=False),
+            nn.Conv2d(hidden_dim, hidden_dim, kernel, stride, kernel // 2, groups=hidden_dim, bias=False),
             nn.BatchNorm2d(hidden_dim),
             activation,
         ]
@@ -76,43 +67,42 @@ class InvertedResidual(nn.Module):
 
         self.block = nn.Sequential(*layers)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.use_residual:
             return x + self.block(x)
         return self.block(x)
 
 
-# ----------------------------
-# MobileNetV3 Large
-# ----------------------------
-
-class MobileNetV3Large(nn.Module):
-    def __init__(self, num_classes=6):
+class MobileNetV3LargeScratch(nn.Module):
+    """
+    MobileNetV3 Large from scratch
+    """
+    def __init__(self, num_classes: int = 6, in_channels: int = 3):
         super().__init__()
 
         # Stem
         self.stem = nn.Sequential(
-            nn.Conv2d(3, 16, 3, stride=2, padding=1, bias=False),
+            nn.Conv2d(in_channels, 16, 3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(16),
-            HSwish()
+            HSwish(),
         )
 
-        # Feature blocks (official V3 Large config)
+        # Feature blocks (official-ish V3 Large config)
         self.features = nn.Sequential(
-            InvertedResidual(16,  16, 3, 1, 1,   False, False),
-            InvertedResidual(16,  24, 3, 2, 4,   False, False),
-            InvertedResidual(24,  24, 3, 1, 3,   False, False),
-            InvertedResidual(24,  40, 5, 2, 3,   True,  False),
-            InvertedResidual(40,  40, 5, 1, 3,   True,  False),
-            InvertedResidual(40,  40, 5, 1, 3,   True,  False),
-            InvertedResidual(40,  80, 3, 2, 6,   False, True),
-            InvertedResidual(80,  80, 3, 1, 2.5, False, True),
-            InvertedResidual(80,  80, 3, 1, 2.3, False, True),
-            InvertedResidual(80, 112, 3, 1, 6,   True,  True),
-            InvertedResidual(112,112, 3, 1, 6,   True,  True),
-            InvertedResidual(112,160, 5, 2, 6,   True,  True),
-            InvertedResidual(160,160, 5, 1, 6,   True,  True),
-            InvertedResidual(160,160, 5, 1, 6,   True,  True),
+            InvertedResidualV3(16,  16, 3, 1, 1.0, False, False),
+            InvertedResidualV3(16,  24, 3, 2, 4.0, False, False),
+            InvertedResidualV3(24,  24, 3, 1, 3.0, False, False),
+            InvertedResidualV3(24,  40, 5, 2, 3.0, True,  False),
+            InvertedResidualV3(40,  40, 5, 1, 3.0, True,  False),
+            InvertedResidualV3(40,  40, 5, 1, 3.0, True,  False),
+            InvertedResidualV3(40,  80, 3, 2, 6.0, False, True),
+            InvertedResidualV3(80,  80, 3, 1, 2.5, False, True),
+            InvertedResidualV3(80,  80, 3, 1, 2.3, False, True),
+            InvertedResidualV3(80, 112, 3, 1, 6.0, True,  True),
+            InvertedResidualV3(112,112, 3, 1, 6.0, True,  True),
+            InvertedResidualV3(112,160, 5, 2, 6.0, True,  True),
+            InvertedResidualV3(160,160, 5, 1, 6.0, True,  True),
+            InvertedResidualV3(160,160, 5, 1, 6.0, True,  True),
         )
 
         # Head
@@ -122,14 +112,19 @@ class MobileNetV3Large(nn.Module):
             HSwish(),
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(960, 1280, 1),
-            HSwish()
+            HSwish(),
         )
 
         self.classifier = nn.Linear(1280, num_classes)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
         x = self.features(x)
         x = self.head(x)
         x = x.view(x.size(0), -1)
         return self.classifier(x)
+
+
+def mobilenetv3_large_fer(*, num_classes: int, in_channels: int = 3, transfer: bool = False, **_) -> nn.Module:
+    # transfer ignored (scratch model) but kept for registry signature compatibility
+    return MobileNetV3LargeScratch(num_classes=num_classes, in_channels=in_channels)

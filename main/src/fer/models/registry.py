@@ -10,6 +10,8 @@ from fer.models.cnn_resnet50 import ResNet50FER
 from fer.models.convnext import convnextfer
 from fer.models.emonext import emonext_fer
 from fer.models.emocatnets import emocatnets_fer
+from fer.models.mobilenetv2 import mobilenetv2_fer
+from fer.models.mobilenetv3 import mobilenetv3_large_fer
 
 # ------------------------------------------------------------
 # Model registry
@@ -245,5 +247,23 @@ register_model(
         size="xlarge",
         num_classes=num_classes,
         in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "mobilenetv2",
+    lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv2_fer(
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "mobilenetv3_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv3_large_fer(
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
     ),
 )
