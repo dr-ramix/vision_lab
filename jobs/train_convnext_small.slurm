@@ -74,7 +74,7 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py model=convnext_small epochs=450 bs=512 optimizer=adamw lr=1e-4 weight_decay=5e-2 \
+python train.py model=convnext_small epochs=450 bs=128 optimizer=adamw lr=1e-4 weight_decay=5e-2 \
   scheduler=warmup_cosine warmup_epochs=10 min_lr=1e-6 amp=true grad_clip=1.0 early_stop=60 \
   class_weight=true label_smoothing=0.05 \
   mix_prob=0.0 mixup_alpha=0.0 cutmix_alpha=0.0 \
