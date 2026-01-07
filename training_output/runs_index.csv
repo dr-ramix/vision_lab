@@ -37,3 +37,6 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-06_13-31-54__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7413793103448276,0.7020255863539445,bargozideh,2026-01-06T23:33:03
 2026-01-06_15-23-24__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.6834102633722509,0.628731343283582,bargozideh,2026-01-06T23:34:31
 2026-01-06_15-25-08__emocatnet_tiny__user-bargozideh__e30877,emocatnet_tiny,accuracy,0.7387998913928863,0.6966950959488273,bargozideh,2026-01-07T00:04:52
+2026-01-06_13-31-07__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7487102905240294,0.7130863539445629,bargozideh,2026-01-07T02:07:52
+2026-01-06_13-35-25__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7565843062720609,0.7114872068230277,bargozideh,2026-01-07T05:35:05
+2026-01-06_13-37-33__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.596660331251697,0.5607009594882729,bargozideh,2026-01-07T08:30:19
