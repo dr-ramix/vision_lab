@@ -11,7 +11,7 @@ from fer.models.convnext import convnextfer
 from fer.models.emonext import emonext_fer
 from fer.models.emocatnets import emocatnets_fer
 from fer.models.mobilenetv2 import mobilenetv2_fer
-from fer.models.mobilenetv3 import (
+from fer.models.mobilenetv3large import (
     mobilenetv3_tiny_fer,
     mobilenetv3_small_fer,
     mobilenetv3_base_fer,
