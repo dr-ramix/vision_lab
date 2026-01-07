@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=convnext_base
+#SBATCH --job-name=convnext_base_aug
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=90:00:00
 #SBATCH --cpus-per-task=8

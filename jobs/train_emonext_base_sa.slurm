@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=emonext_base
+#SBATCH --job-name=emonext_base_SA
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=90:00:00
 #SBATCH --cpus-per-task=8
