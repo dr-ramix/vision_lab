@@ -52,3 +52,4 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-07_17-12-21__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.6857686040195546,0.6350496236594951,bargozideh,2026-01-08T02:20:44
 2026-01-07_17-07-56__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7529875067897882,0.7185772330646772,bargozideh,2026-01-08T05:30:43
 2026-01-07_17-11-34__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7309885931558935,0.6864051155665091,bargozideh,2026-01-08T09:44:49
+2026-01-07_17-10-46__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7460619228680065,0.6977286351828416,bargozideh,2026-01-08T19:19:47
