@@ -40,3 +40,15 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-06_13-31-07__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7487102905240294,0.7130863539445629,bargozideh,2026-01-07T02:07:52
 2026-01-06_13-35-25__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7565843062720609,0.7114872068230277,bargozideh,2026-01-07T05:35:05
 2026-01-06_13-37-33__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.596660331251697,0.5607009594882729,bargozideh,2026-01-07T08:30:19
+2026-01-07_17-07-19__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7216186854970125,0.6798774395523879,bargozideh,2026-01-07T20:43:56
+2026-01-07_17-06-33__coatnet_tiny_1__user-bargozideh__e30877,coatnet_tiny_1,accuracy,0.7263715372080392,0.6880037301005795,bargozideh,2026-01-07T22:08:37
+2026-01-07_18-44-47__emonext_base__user-bargozideh__e30877,emonext_base,accuracy,0.19839760999456818,0.1150336375141544,bargozideh,2026-01-07T23:51:46
+2026-01-07_18-48-35__emonext_base__user-bargozideh__e30877,emonext_base,accuracy,0.19839760999456818,0.1150336375141544,bargozideh,2026-01-07T23:54:45
+2026-01-07_17-09-16__convnext_small__user-bargozideh__e30877,convnext_small,accuracy,0.7460619228680065,0.7064544061813095,bargozideh,2026-01-08T00:13:09
+2026-01-07_17-09-57__convnext_tiny__user-bargozideh__e30877,convnext_tiny,accuracy,0.7423954372623575,0.6999933391061081,bargozideh,2026-01-08T00:26:48
+2026-01-07_17-13-04__emocatnet_tiny__user-bargozideh__e30877,emocatnet_tiny,accuracy,0.7668386746333514,0.7302337973756078,bargozideh,2026-01-08T00:42:37
+2026-01-07_20-44-19__emonext_base__user-bargozideh__e30877,emonext_base,accuracy,0.19839760999456818,0.1150336375141544,bargozideh,2026-01-08T01:43:40
+2026-01-07_17-08-26__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7413090711569799,0.7032571771131686,bargozideh,2026-01-08T02:02:59
+2026-01-07_17-12-21__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.6857686040195546,0.6350496236594951,bargozideh,2026-01-08T02:20:44
+2026-01-07_17-07-56__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7529875067897882,0.7185772330646772,bargozideh,2026-01-08T05:30:43
+2026-01-07_17-11-34__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7309885931558935,0.6864051155665091,bargozideh,2026-01-08T09:44:49
