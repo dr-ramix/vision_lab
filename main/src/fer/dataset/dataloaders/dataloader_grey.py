@@ -55,10 +55,6 @@ class AddGaussianNoise(torch.nn.Module):
 
 
 def build_train_augmentations() -> transforms.Compose:
-    """
-    Re-usable train-time augmentations for float tensors in [0,1].
-    Keep separate so other loaders can import + reuse it.
-    """
     return transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
 
@@ -77,11 +73,31 @@ def build_train_augmentations() -> transforms.Compose:
         ),
 
         transforms.RandomApply(
-            [transforms.ColorJitter(brightness=0.2, contrast=(1.5, 2.0))],
+            [transforms.ColorJitter(
+                brightness=(0.85, 1.15),
+                contrast=(0.85, 1.15),
+            )],
             p=0.30,
         ),
 
+        transforms.RandomApply(
+            [transforms.ColorJitter(
+                brightness=(0.90, 1.10),
+                contrast=(0.90, 1.10),
+                saturation=(0.85, 1.15),
+                hue=(-0.02, 0.02),
+            )],
+            p=0.20,
+        ),
+
         AddGaussianNoise(sigma_range=(0.08, 0.12), p=0.25),
+
+        transforms.RandomErasing(
+            p=0.10,
+            scale=(0.01, 0.03), # 1% - 3% der Bildfläche
+            ratio=(0.5, 2.0),
+            value="random",
+        ),
     ])
 
 
