@@ -173,7 +173,6 @@ def main(argv: list[str]) -> None:
         / "fer"
         / "dataset"
         / "standardized"
-        / "images_mtcnn_cropped"
     )
 
     # --------------------------------------------------------

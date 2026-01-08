@@ -37,8 +37,10 @@ main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/*
 
 main/src/fer/dataset/standardized/only_mtcnn_cropped/color_and_grey/*
 !main/src/fer/dataset/standardized/only_mtcnn_cropped/color_and_grey/.gitkeep
+!main/src/fer/dataset/standardized/only_mtcnn_cropped/color_and_grey/dataset_stats_train.json
 main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/*
 !main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/.gitkeep
+!main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/dataset_stats_train.json
 
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)

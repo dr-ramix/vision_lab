@@ -88,6 +88,41 @@ def _build_main(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, 
     class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
     return dls, list(CLASS_ORDER), dict(class_to_idx)
 
+@register_dataloader("grey", "gray", "npy_grey", "npy_gray", "dataloader_grey")
+def _build_grey(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
+    from fer.dataset.dataloaders.dataloader_grey import (
+        build_dataloaders as build,
+        CLASS_ORDER,
+        CLASS_TO_IDX,
+    )
+
+    dls = build(
+        images_root=images_root,
+        batch_size=int(getattr(settings, "bs", 64)),
+        num_workers=int(getattr(settings, "num_workers", 4)),
+        pin_memory=bool(getattr(settings, "pin_memory", True)),
+        # optional override:
+        # stats_json=Path(getattr(settings, "stats_json", "")) if getattr(settings, "stats_json", "") else None,
+    )
+    class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
+    return dls, list(CLASS_ORDER), dict(class_to_idx)
+
+@register_dataloader("mixed", "color_and_grey", "npy_mixed", "dataloader_mixed")
+def _build_mixed(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
+    from fer.dataset.dataloaders.dataloader_mixed import (
+        build_dataloaders as build,
+        CLASS_ORDER,
+        CLASS_TO_IDX,
+    )
+
+    dls = build(
+        images_root=images_root,  # .../standardized
+        batch_size=int(getattr(settings, "bs", 64)),
+        num_workers=int(getattr(settings, "num_workers", 4)),
+        pin_memory=bool(getattr(settings, "pin_memory", True)),
+    )
+    class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
+    return dls, list(CLASS_ORDER), dict(class_to_idx)
 
 @register_dataloader("fer", "fer2013", "FER2013")
 def _build_legacy(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
