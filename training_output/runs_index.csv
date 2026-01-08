@@ -40,6 +40,7 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-06_13-31-07__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7487102905240294,0.7130863539445629,bargozideh,2026-01-07T02:07:52
 2026-01-06_13-35-25__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7565843062720609,0.7114872068230277,bargozideh,2026-01-07T05:35:05
 2026-01-06_13-37-33__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.596660331251697,0.5607009594882729,bargozideh,2026-01-07T08:30:19
+<<<<<<< HEAD
 2026-01-07_17-07-19__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7216186854970125,0.6798774395523879,bargozideh,2026-01-07T20:43:56
 2026-01-07_17-06-33__coatnet_tiny_1__user-bargozideh__e30877,coatnet_tiny_1,accuracy,0.7263715372080392,0.6880037301005795,bargozideh,2026-01-07T22:08:37
 2026-01-07_18-44-47__emonext_base__user-bargozideh__e30877,emonext_base,accuracy,0.19839760999456818,0.1150336375141544,bargozideh,2026-01-07T23:51:46
@@ -53,3 +54,26 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-07_17-07-56__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7529875067897882,0.7185772330646772,bargozideh,2026-01-08T05:30:43
 2026-01-07_17-11-34__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7309885931558935,0.6864051155665091,bargozideh,2026-01-08T09:44:49
 2026-01-07_17-10-46__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7460619228680065,0.6977286351828416,bargozideh,2026-01-08T19:19:47
+=======
+2026-01-07_22-08-53__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7094005449591281,0.6726170652101512,hosseinis,2026-01-07T23:49:46
+2026-01-07_23-50-02__coatnet_tiny_1__user-hosseinis__e30877,coatnet_tiny_1,accuracy,0.7070844686648501,0.6722174115766336,hosseinis,2026-01-08T04:48:42
+2026-01-08_02-24-16__emonext_tiny__user-hosseinis__e30877,emonext_tiny,accuracy,0.18869209809264306,0.14034503430360354,hosseinis,2026-01-08T05:05:35
+2026-01-08_02-23-38__emonext_tiny__user-hosseinis__e30877,emonext_tiny,accuracy,0.18869209809264306,0.14034503430360354,hosseinis,2026-01-08T05:05:35
+2026-01-08_05-05-56__mobilenetv3_tiny__user-hosseinis__e30877,mobilenetv3_tiny,accuracy,0.21076294277929156,0.1569306600945847,hosseinis,2026-01-08T05:52:32
+2026-01-07_23-52-02__convnext_tiny__user-hosseinis__e30877,convnext_tiny,accuracy,0.7317438692098093,0.6896689535735696,hosseinis,2026-01-08T06:31:52
+2026-01-08_02-24-59__emonext_base__user-hosseinis__e30877,emonext_base,accuracy,0.20435967302452315,0.14227669353227204,hosseinis,2026-01-08T07:48:18
+2026-01-08_05-05-54__mobilenetv3_small__user-hosseinis__e30877,mobilenetv3_small,accuracy,0.6771117166212534,0.6404449477119829,hosseinis,2026-01-08T07:48:31
+2026-01-08_02-26-40__emonext_base__user-hosseinis__e30877,emonext_base,accuracy,0.20435967302452315,0.14227669353227204,hosseinis,2026-01-08T07:57:16
+2026-01-08_02-25-34__emonext_base__user-hosseinis__e30877,emonext_base,accuracy,0.20435967302452315,0.14227669353227204,hosseinis,2026-01-08T07:58:19
+2026-01-08_04-49-18__mobilenetv2__user-hosseinis__e30877,mobilenetv2,accuracy,0.6885558583106267,0.6519682941450743,hosseinis,2026-01-08T08:33:23
+2026-01-08_05-53-17__mobilenetv3_base__user-hosseinis__e30877,mobilenetv3_base,accuracy,0.6732970027247956,0.6440418304136415,hosseinis,2026-01-08T08:53:59
+2026-01-07_23-56-00__convnext_small__user-hosseinis__e30877,convnext_small,accuracy,0.7317438692098093,0.6918670485579165,hosseinis,2026-01-08T10:00:35
+2026-01-08_00-44-46__emocatnet_tiny__user-hosseinis__e30877,emocatnet_tiny,accuracy,0.7295640326975477,0.6943981882368614,hosseinis,2026-01-08T10:02:16
+2026-01-08_06-32-17__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.7668937329700273,0.7187770598814361,hosseinis,2026-01-08T11:52:57
+2026-01-08_01-44-05__emocatnets_small__user-hosseinis__e30877,emocatnets_small,accuracy,0.7309264305177112,0.6995270765336709,hosseinis,2026-01-08T12:23:01
+2026-01-08_02-24-22__emonext_small__user-hosseinis__e30877,emonext_small,accuracy,0.7163487738419618,0.6749483780723373,hosseinis,2026-01-08T12:36:51
+2026-01-08_00-13-28__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7331062670299727,0.6918670485579165,hosseinis,2026-01-08T17:27:00
+2026-01-08_00-27-05__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7478201634877384,0.7069872776926663,hosseinis,2026-01-08T17:50:35
+2026-01-08_02-03-15__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6922343324250682,0.6620262439219343,hosseinis,2026-01-08T19:25:54
+2026-01-08_07-48-48__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.771117166212534,0.7354959035502564,hosseinis,2026-01-08T20:31:36
+>>>>>>> d9fe060 (auto-commit)

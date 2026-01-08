@@ -254,7 +254,7 @@ register_model(
 )
 
 register_model(
-    "emocatnet_tiny",
+    "emocatnets_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
         size="tiny",
         num_classes=num_classes,
