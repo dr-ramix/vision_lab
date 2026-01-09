@@ -108,7 +108,7 @@ register_model(
 )
 
 register_model(
-    "coatnet_tiny_1",
+    "coatnet_small",
     lambda num_classes, in_channels=3, **_: CoAtNet(
         inp_h=64,
         inp_w=64,
@@ -118,7 +118,49 @@ register_model(
         ),
 )
 
+register_model(
+    "coatnet_base",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-2",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
 
+register_model(
+    "coatnet_large",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-3",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
+
+register_model(
+    "coatnet_xlarge",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-4",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
+
+register_model(
+    "coatnet_huge",
+    lambda num_classes, in_channels=3, **_: CoAtNet(
+        inp_h=64,
+        inp_w=64,
+        config="coatnet-5",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
 
 register_model(
     "convnext_tiny",
