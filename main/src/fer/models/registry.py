@@ -18,6 +18,8 @@ from fer.models.mobilenetv3 import (
     mobilenetv3_large_fer,
     mobilenetv3_xlarge_fer,
 )
+from fer.models.emocatnets_v2 import emocatnets_v2_fer
+
 
 # ------------------------------------------------------------
 # Model registry
@@ -314,3 +316,44 @@ register_model("mobilenetv3_small",  lambda num_classes, in_channels=3, transfer
 register_model("mobilenetv3_base",   lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv3_base_fer(num_classes=num_classes, in_channels=in_channels, transfer=transfer))
 register_model("mobilenetv3_large",  lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv3_large_fer(num_classes=num_classes, in_channels=in_channels, transfer=transfer))
 register_model("mobilenetv3_xlarge", lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv3_xlarge_fer(num_classes=num_classes, in_channels=in_channels, transfer=transfer))
+
+
+# ------------------------------------------------------------
+# EmoCatNets-v2 (Residual STN + 64->64 stem + CBAM + T@8x8 + multi-scale head)
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv2_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)

@@ -77,3 +77,5 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-08_02-03-15__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6922343324250682,0.6620262439219343,hosseinis,2026-01-08T19:25:54
 2026-01-08_07-48-48__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.771117166212534,0.7354959035502564,hosseinis,2026-01-08T20:31:36
 2026-01-08_02-21-42__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6955040871934605,0.6416439086125358,hosseinis,2026-01-09T00:02:52
+2026-01-09_23-57-42__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:03:43
+2026-01-10_00-04-59__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:07:43

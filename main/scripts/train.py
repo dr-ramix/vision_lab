@@ -49,9 +49,7 @@ def _load_dataset_stats(images_root: Path) -> Dict[str, Any] | None:
       - images_root.parent.parent / "dataset_stats_train.json" (fallback)
     """
     candidates = [
-        images_root / "dataset_stats_train.json",
-        images_root.parent / "dataset_stats_train.json",
-        images_root.parent.parent / "dataset_stats_train.json",
+      images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
     ]
     for p in candidates:
         if p.exists():
