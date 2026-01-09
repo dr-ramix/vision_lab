@@ -12,10 +12,6 @@ from fer.xai.grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
-# =========================================================
-# CONFIG
-# =========================================================
-
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -24,30 +20,27 @@ MODEL_PATH = BASE_DIR / "weights" / "resnet18fer" / "model_state_dict.pt"
 IMG_SIZE = 64
 DETECT_EVERY = 5
 DETECT_MAX_SIZE = 480
-SMOOTH_ALPHA = 0.65
+SMOOTH_ALPHA = 0.6
 
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise"]
 
-# =========================================================
-# MODEL
-# =========================================================
+
+EMOTION_COLORS = {
+    "Angry": (60, 60, 255),
+    "Disgust": (80, 180, 80),
+    "Fear": (180, 80, 180),
+    "Happy": (80, 220, 220),
+    "Sad": (200, 120, 60),
+    "Surprise": (80, 200, 255),
+}
+
 
 model = ResNet18FER(num_classes=6, in_channels=3)
 model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
 model.to(DEVICE).eval()
 
-target_layers = [model.layer4[-1]]
-
-cam = GradCAM(
-    model=model,
-    target_layers=target_layers
-)
-
+cam = GradCAM(model=model, target_layers=[model.layer4[-1]])
 processor = BasicImageProcessor(target_size=(IMG_SIZE, IMG_SIZE))
-
-# =========================================================
-# FACE DETECTOR
-# =========================================================
 
 cropper = MTCNNFaceCropper(
     keep_all=True,
@@ -55,10 +48,6 @@ cropper = MTCNNFaceCropper(
     crop_scale=1.15,
     device=DEVICE,
 )
-
-# =========================================================
-# HELPERS
-# =========================================================
 
 def resize_for_detection(frame_rgb):
     h, w = frame_rgb.shape[:2]
@@ -69,11 +58,54 @@ def resize_for_detection(frame_rgb):
 
 
 def preprocess_face(face_bgr):
-    face_resized = cv2.resize(face_bgr, (IMG_SIZE, IMG_SIZE))
-    proc = processor.process_bgr(face_resized)
+    face = cv2.resize(face_bgr, (IMG_SIZE, IMG_SIZE))
+    proc = processor.process_bgr(face)
     img = proc.normalized_rgb_vis.astype(np.float32) / 255.0
     img = np.transpose(img, (2, 0, 1))
     return torch.from_numpy(img).unsqueeze(0).to(DEVICE)
+
+
+def draw_emotion_box(frame, x1, y1, x2, y2, emotion, conf):
+    color = EMOTION_COLORS[emotion]
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+    label = f"{emotion} {conf:.0%}"
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
+
+    cv2.rectangle(frame, (x1, y1 - th - 8), (x1 + tw + 6, y1), color, -1)
+    cv2.putText(frame, label, (x1 + 3, y1 - 4),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+
+def apply_neutral_xai_background(frame, cam_mask, face_boxes):
+    h, w = cam_mask.shape
+
+    cam_mask = np.clip(cam_mask, 0, 1)
+    cam_mask = cv2.GaussianBlur(cam_mask, (251, 251), 0)
+
+    inv_cam = 1.0 - cam_mask
+    inv_cam = np.clip(inv_cam, 0, 1)
+
+    # Convert to heatmap (neutral CAM look)
+    heatmap = cv2.applyColorMap(
+    ((1.0 - inv_cam) * 255).astype(np.uint8),
+    cv2.COLORMAP_JET
+)
+
+    heatmap = heatmap.astype(np.float32) / 255.0
+    frame_f = frame.astype(np.float32) / 255.0
+
+    blended = frame_f * 0.5 + heatmap * 0.5
+    blended = (blended * 255).astype(np.uint8)
+
+    mask_outside_faces = np.ones((h, w), dtype=np.uint8)
+
+    for (x1, y1, x2, y2) in face_boxes:
+        mask_outside_faces[y1:y2, x1:x2] = 0
+
+    mask_outside_faces = mask_outside_faces[..., None]
+
+    frame[:] = np.where(mask_outside_faces, blended, frame)
 
 
 def should_exit(name):
@@ -83,21 +115,14 @@ def should_exit(name):
         return True
     return False
 
-# =========================================================
-# STATE
-# =========================================================
 
 stable_boxes = None
 cached_scale = 1.0
+frame_idx = 0
 
-# =========================================================
-# WEBCAM LOOP
-# =========================================================
 
 cap = cv2.VideoCapture(0)
 print("Press 'q' to quit")
-
-frame_idx = 0
 
 while True:
     ret, frame_bgr = cap.read()
@@ -107,124 +132,70 @@ while True:
     frame_idx += 1
     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
 
-    # ---------------- FACE DETECTION ----------------
     if frame_idx % DETECT_EVERY == 0:
-        small_rgb, scale = resize_for_detection(frame_rgb)
-        pil_small = Image.fromarray(small_rgb)
-
-        boxes, _ = cropper.mtcnn.detect(pil_small, landmarks=False)
+        small, scale = resize_for_detection(frame_rgb)
+        boxes, _ = cropper.mtcnn.detect(Image.fromarray(small), landmarks=False)
 
         if boxes is not None:
             boxes = boxes.astype(np.float32)
-
-            if stable_boxes is None or len(stable_boxes) != len(boxes):
-                stable_boxes = boxes.copy()
-            else:
-                stable_boxes = (
-                    SMOOTH_ALPHA * stable_boxes
-                    + (1.0 - SMOOTH_ALPHA) * boxes
-                )
-
+            stable_boxes = boxes if stable_boxes is None else (
+                SMOOTH_ALPHA * stable_boxes + (1 - SMOOTH_ALPHA) * boxes
+            )
             cached_scale = scale
 
-    # =====================================================
-    # FACE SELECTION + EMOTION
-    # =====================================================
+    if stable_boxes is None:
+        cv2.imshow("FER XAI Demo", frame_bgr)
+        if should_exit("FER XAI Demo"):
+            break
+        continue
 
-    emotion = "N/A"
-    confidence = 0.0
-    emotion_id = None
+    inv_scale = 1.0 / cached_scale
+    h, w = frame_bgr.shape[:2]
 
-    face_tensor = None
-    face_crop = None
-    x1 = y1 = x2 = y2 = None
+    global_cam = np.zeros((h, w), dtype=np.float32)
+    face_boxes = []
 
-    if stable_boxes is not None:
-        inv_scale = 1.0 / cached_scale
-
-        # größtes Gesicht
-        areas = []
-        for box in stable_boxes:
-            bx1, by1, bx2, by2 = (box * inv_scale).astype(int)
-            areas.append(max(0, bx2 - bx1) * max(0, by2 - by1))
-
-        idx = int(np.argmax(areas))
-        box = stable_boxes[idx]
-
+    for box in stable_boxes:
         x1, y1, x2, y2 = (box * inv_scale).astype(int)
-        h, w = frame_bgr.shape[:2]
+        x1, x2 = np.clip([x1, x2], 0, w - 1)
+        y1, y2 = np.clip([y1, y2], 0, h - 1)
 
-        x1 = max(0, min(x1, w - 1))
-        x2 = max(0, min(x2, w - 1))
-        y1 = max(0, min(y1, h - 1))
-        y2 = max(0, min(y2, h - 1))
+        if x2 <= x1 or y2 <= y1:
+            continue
 
-        if x2 > x1 and y2 > y1:
-            face_crop = frame_bgr[y1:y2, x1:x2]
-            face_tensor = preprocess_face(face_crop)
+        face_boxes.append((x1, y1, x2, y2))
 
-            with torch.no_grad():
-                logits = model(face_tensor)
-                probs = torch.softmax(logits, dim=1)
+        face_crop = frame_bgr[y1:y2, x1:x2]
+        face_tensor = preprocess_face(face_crop)
 
-            emotion_id = probs.argmax().item()
-            emotion = EMOTIONS[emotion_id]
-            confidence = probs[0, emotion_id].item()
+        with torch.no_grad():
+            probs = torch.softmax(model(face_tensor), dim=1)
 
-    
-    blue_overlay = np.zeros_like(frame_bgr)
-    blue_overlay[:] = (255, 0, 0)  # BGR Blue
+        emotion_id = probs.argmax().item()
+        emotion = EMOTIONS[emotion_id]
+        conf = probs[0, emotion_id].item()
 
-    frame_bgr = cv2.addWeighted(frame_bgr, 0.25, blue_overlay, 0.75, 0)
-
-    # =====================================================
-    # FACE GRAD-CAM
-    # =====================================================
-
-    if face_tensor is not None and emotion_id is not None:
         grayscale_cam = cam(
             input_tensor=face_tensor,
             targets=[ClassifierOutputTarget(emotion_id)]
-        )[0]  # (64,64)
+        )[0]
 
-        cam_face = cv2.resize(
-            grayscale_cam,
-            (x2 - x1, y2 - y1)
-        )
+        cam_face = cv2.resize(grayscale_cam, (x2 - x1, y2 - y1))
+        global_cam[y1:y2, x1:x2] = np.maximum(global_cam[y1:y2, x1:x2], cam_face)
 
-        frame_bgr[y1:y2, x1:x2] = face_crop
-        
         overlay_face = show_cam_on_image(
             cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0,
             cam_face,
             use_rgb=True
         )
 
-        frame_bgr[y1:y2, x1:x2] = cv2.cvtColor(
-            overlay_face, cv2.COLOR_RGB2BGR
-        )
+        frame_bgr[y1:y2, x1:x2] = cv2.cvtColor(overlay_face, cv2.COLOR_RGB2BGR)
+        draw_emotion_box(frame_bgr, x1, y1, x2, y2, emotion, conf)
 
-    # ---------------- DRAW BOXES ----------------
-    if stable_boxes is not None:
-        inv_scale = 1.0 / cached_scale
-        for box in stable_boxes:
-            bx1, by1, bx2, by2 = (box * inv_scale).astype(int)
-            cv2.rectangle(frame_bgr, (bx1, by1), (bx2, by2), (0, 255, 0), 2)
+    apply_neutral_xai_background(frame_bgr, global_cam, face_boxes)
 
-    # ---------------- LABEL ----------------
-    cv2.putText(
-        frame_bgr,
-        f"{emotion} ({confidence:.2f})",
-        (20, 40),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1.0,
-        (0, 255, 0),
-        2,
-    )
-
-    cv2.imshow("FER Webcam Demo (Face Grad-CAM)", frame_bgr)
-
-    if should_exit("FER Webcam Demo (Face Grad-CAM)"):
+    cv2.imshow("FER XAI Demo", frame_bgr)
+    if should_exit("FER XAI Demo"):
         break
 
 cap.release()
