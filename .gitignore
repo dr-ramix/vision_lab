@@ -6,7 +6,8 @@ __pycache__/
 venv/
 .env
 
-
+jobs/
+training_output/runs/
 
 # Raw data (never share)
 data/
