@@ -76,4 +76,4 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-08_00-27-05__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7478201634877384,0.7069872776926663,hosseinis,2026-01-08T17:50:35
 2026-01-08_02-03-15__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6922343324250682,0.6620262439219343,hosseinis,2026-01-08T19:25:54
 2026-01-08_07-48-48__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.771117166212534,0.7354959035502564,hosseinis,2026-01-08T20:31:36
->>>>>>> d9fe060 (auto-commit)
+2026-01-08_02-21-42__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6955040871934605,0.6416439086125358,hosseinis,2026-01-09T00:02:52
