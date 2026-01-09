@@ -20,10 +20,20 @@ MODEL_PATH = BASE_DIR / "weights" / "resnet18fer" / "model_state_dict.pt"
 IMG_SIZE = 64
 DETECT_EVERY = 5
 DETECT_MAX_SIZE = 480
-MIN_PROB = 0.90
+MIN_PROB = 0.5
 SMOOTH_ALPHA = 0.65
 
 EMOTIONS = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise"]
+
+EMOTION_COLORS = {
+    "Angry":    (0, 0, 255),     
+    "Disgust":  (0, 180, 0),     
+    "Fear":     (180, 0, 180),   
+    "Happy":    (0, 220, 220),   
+    "Sad":      (255, 120, 0),   
+    "Surprise": (0, 200, 255),   
+}
+
 
 torch.set_grad_enabled(False)
 
@@ -79,13 +89,44 @@ def should_exit(name):
         return True
     return False
 
+def draw_box_layout(frame, x1, y1, x2, y2, emotion, conf):
+    color = EMOTION_COLORS.get(emotion, (0, 255, 0))
+
+    cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+
+    label = f"{emotion.upper()}  {conf:.0%}"
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.65, 2)
+
+    pad = 6
+    y_label = max(th + pad + 2, y1)
+
+    cv2.rectangle(
+        frame,
+        (x1, y_label - th - pad * 2),
+        (x1 + tw + pad * 2, y_label),
+        color,
+        -1,
+    )
+
+    cv2.putText(
+        frame,
+        label,
+        (x1 + pad, y_label - pad),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (0, 0, 0),
+        2,
+    )
+
 # =========================================================
-# STATE (IMPORTANT)
+# STATE
 # =========================================================
 
 stable_boxes = None
 cached_faces: List[FaceCropResult] = []
 cached_scale = 1.0
+emotion_ema = {}
+EMA_ALPHA = 0.7  
 
 # =========================================================
 # WEBCAM LOOP
@@ -126,6 +167,9 @@ while True:
             cached_faces = faces
             cached_scale = scale
 
+    if stable_boxes is not None and len(emotion_ema) != len(stable_boxes):
+        emotion_ema.clear()    
+
     faces = cached_faces
 
     # ---------------- MODEL ----------------
@@ -137,22 +181,30 @@ while True:
         inv_scale = 1.0 / cached_scale
 
         for i, box in enumerate(stable_boxes):
-            emotion_id = probs[i].argmax().item()
-            emotion = EMOTIONS[emotion_id]
-            confidence = probs[i, emotion_id].item()
+            
+            probs_np = probs[i].cpu().numpy()
 
+            if i not in emotion_ema:
+                emotion_ema[i] = probs_np
+            else:
+                emotion_ema[i] = (
+                    EMA_ALPHA * emotion_ema[i]
+                    + (1 - EMA_ALPHA) * probs_np
+                )
+            emotion_id = emotion_ema[i].argmax()
+            emotion = EMOTIONS[emotion_id]
+            confidence = emotion_ema[i][emotion_id]
+            if confidence < MIN_PROB:
+                continue
             x1, y1, x2, y2 = (box * inv_scale).astype(int)
 
-            cv2.rectangle(frame_bgr, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(
-                frame_bgr,
-                f"{emotion} ({confidence:.2f})",
-                (x1, max(20, y1 - 10)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 255, 0),
-                2,
-            )
+            draw_box_layout(
+            frame_bgr,
+            x1, y1, x2, y2,
+            emotion,
+            confidence
+        )
+        
 
     cv2.imshow("FER Webcam Demo", frame_bgr)
     if should_exit("FER Webcam Demo"):
