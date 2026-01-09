@@ -32,12 +32,14 @@ def _to_3c(img: torch.Tensor) -> torch.Tensor:
     """Ensure (3,H,W) for visualization (handles C=1 and C>=3)."""
     if img.ndim != 3:
         raise ValueError(f"Expected (C,H,W), got {tuple(img.shape)}")
+
     c, _, _ = img.shape
     if c == 1:
         return img.repeat(3, 1, 1)
     if c >= 3:
         return img[:3]
-    # c==2 -> pad last channel
+
+    # c == 2 -> pad last channel
     pad = img[-1:].repeat(3 - c, 1, 1)
     return torch.cat([img, pad], dim=0)
 
@@ -49,7 +51,6 @@ def _unnormalize_mean_std(
 ) -> torch.Tensor:
     """
     Undo (x - mean) / std  =>  x = x * std + mean
-    mean/std can be len 1 or len C. We assume img already is (C,H,W).
     """
     img = img.float()
     c = img.shape[0]
@@ -76,28 +77,17 @@ def tensor_to_rgb_uint8(
     train_mean: Optional[Sequence[float]] = None,
     train_std: Optional[Sequence[float]] = None,
     clamp: Tuple[float, float] = (0.0, 1.0),
-    auto_detect_norm: bool = True,
+    auto_detect_norm: bool = False,  # IMPORTANT: keep OFF
 ) -> np.ndarray:
     """
     Convert (C,H,W) tensor to RGB uint8 image (H,W,3).
 
-    If train_mean/std provided: undo normalization (x*std + mean) before clamping.
-    BUT: if auto_detect_norm=True, we detect if tensor already looks like [0,1]
-    and skip unnormalization to avoid double-inversion (common when previewing PNG pipelines).
+    Always unnormalizes when mean/std are provided.
     """
     img = img_t.detach().float()
     img = _to_3c(img)
 
-    do_unnorm = (train_mean is not None and train_std is not None)
-
-    if do_unnorm and auto_detect_norm:
-        # Heuristic: if it already looks like [0,1], don't unnormalize
-        mn = float(img.min())
-        mx = float(img.max())
-        if mn >= -0.05 and mx <= 1.05:
-            do_unnorm = False
-
-    if do_unnorm:
+    if train_mean is not None and train_std is not None:
         img = _unnormalize_mean_std(img, train_mean, train_std)
 
     lo, hi = float(clamp[0]), float(clamp[1])
@@ -106,13 +96,12 @@ def tensor_to_rgb_uint8(
     img_np = (img.permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8)
     return img_np
 
+
 # ============================================================
 # Matplotlib saving helpers
 # ============================================================
 def _save_single_plot(*, image: np.ndarray, title: str, out_path: Path) -> None:
-    """
-    Save ONE image as a matplotlib figure with title above.
-    """
+    """Save ONE image as a matplotlib figure with title above."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plt.figure(figsize=(3.6, 3.8))
@@ -131,9 +120,7 @@ def _save_grid_plot(
     cols: int,
     title: str,
 ) -> None:
-    """
-    Save a grid plot from collected samples (matplotlib).
-    """
+    """Save a grid plot from collected samples (matplotlib)."""
     if not samples:
         return
 
@@ -141,6 +128,7 @@ def _save_grid_plot(
     rows = math.ceil(len(samples) / cols)
 
     plt.figure(figsize=(cols * 3.6, rows * 3.8))
+
     for i, s in enumerate(samples):
         ax = plt.subplot(rows, cols, i + 1)
         ax.imshow(s["img"])
@@ -152,8 +140,10 @@ def _save_grid_plot(
             fontsize=9,
         )
 
-    plt.suptitle(title, fontsize=14)
-    plt.tight_layout()
+    # ---- main title higher + reserved space ----
+    plt.suptitle(title, fontsize=14, y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=160)
     plt.close()
@@ -176,21 +166,12 @@ def save_previews(
     split_name: str = "test",
     save_grid: bool = True,
     seed: Optional[int] = None,
-    # pass train stats from dataset_stats_train.json (your preprocessing)
     train_mean: Optional[Sequence[float]] = None,
     train_std: Optional[Sequence[float]] = None,
     save_items_json: bool = True,
 ) -> PreviewResult:
     """
-    Saves:
-      - out_dir / "000.png" ... (matplotlib figure per sample with title TRUE/PRED)
-      - out_dir / "grid_<split>.png" (matplotlib grid, optional)
-      - out_dir / "items.json" (metadata, optional)
-
-    Assumptions:
-      - loader yields (xb, yb)
-      - xb is (B,C,H,W) float tensor (normalized or not)
-      - yb is class indices
+    Generate preview images and grids for a dataset split.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +182,7 @@ def save_previews(
     samples: List[Dict[str, Any]] = []
     batches_scanned = 0
 
-    # -------- collect samples (no plotting) --------
+    # -------- collect samples --------
     for xb, yb in loader:
         if batches_scanned >= max_batches or len(samples) >= n:
             break
@@ -213,9 +194,9 @@ def save_previews(
         logits = model(xb)
         pred = logits.argmax(dim=1)
 
-        xb_cpu = xb.detach().cpu()
-        yb_cpu = yb.detach().cpu()
-        pr_cpu = pred.detach().cpu()
+        xb_cpu = xb.cpu()
+        yb_cpu = yb.cpu()
+        pr_cpu = pred.cpu()
 
         order = rng.permutation(xb_cpu.size(0))
         for i in order:
@@ -229,24 +210,21 @@ def save_previews(
                 clamp=(0.0, 1.0),
             )
 
-            t_idx = int(yb_cpu[int(i)].item())
-            p_idx = int(pr_cpu[int(i)].item())
-            true_label = idx_to_class.get(t_idx, str(t_idx))
-            pred_label = idx_to_class.get(p_idx, str(p_idx))
-            correct = bool(t_idx == p_idx)
+            t_idx = int(yb_cpu[int(i)])
+            p_idx = int(pr_cpu[int(i)])
 
             samples.append(
                 {
                     "img": img_np,
                     "true_idx": t_idx,
                     "pred_idx": p_idx,
-                    "true_label": true_label,
-                    "pred_label": pred_label,
-                    "correct": correct,
+                    "true_label": idx_to_class.get(t_idx, str(t_idx)),
+                    "pred_label": idx_to_class.get(p_idx, str(p_idx)),
+                    "correct": t_idx == p_idx,
                 }
             )
 
-    # -------- save individual plots --------
+    # -------- save individual images --------
     saved_paths: List[Path] = []
     items: List[Dict[str, Any]] = []
 
@@ -270,7 +248,7 @@ def save_previews(
             }
         )
 
-    # -------- save grid plot --------
+    # -------- save grid --------
     grid_path: Optional[Path] = None
     if save_grid and samples:
         grid_path = out_dir / f"grid_{split_name}.png"
