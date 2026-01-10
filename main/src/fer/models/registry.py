@@ -21,6 +21,7 @@ from fer.models.mobilenetv3 import (
 from fer.models.emocatnets_v2 import emocatnets_v2_fer
 from fer.models.cnn_resnet101 import ResNet101FER
 
+
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -364,6 +365,59 @@ register_model(
 register_model(
     "resnet101",
     lambda num_classes, in_channels=3, transfer=False, **_: ResNet101FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+
+# ------------------------------------------------------------
+# ConvNeXt-v2 (FER)
+# - Residual stem (64 -> 64)
+# - Delayed downsampling: 64 -> 32 -> 16 -> 8
+# ------------------------------------------------------------
+
+register_model(
+    "convnextv2_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnextv2_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnextv2_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnextv2_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "convnextv2_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2(
+        size="xlarge",
         num_classes=num_classes,
         in_channels=in_channels,
     ),
