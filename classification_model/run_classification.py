@@ -1,101 +1,245 @@
-#   cd vision_lab
-#   source venv/bin/activate
-#
-#   python classification_model/run_classification.py \
-#     --images_dir classification_model_test_images/images/images/0 \
-#     --model fer.models.cnn_resnet18:ResNet18FER \
-#     --weights training_output/runs/2026-01-06_15-27-58__resnet18__user-bargozideh__e30877/exports/model_state_dict.pt \
-#     --out_csv classification_model/classification_scores.csv
-
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
 import csv
-import json
-import os
+import math
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
 from PIL import Image
+from torch.utils.data import DataLoader, Dataset
+from facenet_pytorch import MTCNN
 
-# --------------------------------------------------
-# Repo paths / imports
-# --------------------------------------------------
-REPO_ROOT = Path(__file__).resolve().parents[1]  # .../vision_lab
-SRC_ROOT = REPO_ROOT / "main" / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
 
-from fer.pre_processing.face_detection.mtcnn import MTCNNFaceCropper  # your MTCNN cropper
+# BASE DIR (script folder): model + weights here too
+BASE_DIR = Path(__file__).resolve().parent
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
-# --------------------------------------------------
-# IMPORTANT: model output order MUST match training/dataloader mapping
-# Your project mapping is:
-#   0 anger, 1 disgust, 2 fear, 3 happiness, 4 sadness, 5 surprise
-# --------------------------------------------------
+
+# DEFAULT PATHS (EDITABLE)
+DEFAULT_IMAGES_DIR = BASE_DIR / "images"          # <-- HIER: Default input folder
+DEFAULT_OUT_DIR = BASE_DIR / "output"             # <-- HIER: Default output folder for CSV
+DEFAULT_OUT_NAME = "classification_scores.csv"    # <-- HIER: Default CSV file name
+DEFAULT_NPY_DIR = BASE_DIR / "npy_preprocessed"   # <-- Optional: only used if --save_npy is set
+
+
+# Class order
+# training order: 0 anger, 1 disgust, 2 fear, 3 happiness, 4 sadness, 5 surprise
 TRAIN_CLASS_ORDER = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
-
-# CSV order (as shown in your screenshot)
 CSV_CLASS_ORDER = ["happiness", "surprise", "sadness", "anger", "disgust", "fear"]
 
-# --------------------------------------------------
-# Dataset stats (from your JSON)
-# --------------------------------------------------
-MEAN = np.array([0.5461214492863451, 0.5461214492863451, 0.5461214492863451], dtype=np.float32)
-STD = np.array([0.22092840651221893, 0.22092840651221893, 0.22092840651221893], dtype=np.float32)
+
+# Train stats (computed from npy in [0,1]) 
+MEAN = np.array([0.5426446906981507, 0.5426446906981507, 0.5426446906981507], dtype=np.float32)
+STD = np.array([0.22369591629278052, 0.22369591629278052, 0.22369591629278052], dtype=np.float32)
 TARGET_SIZE = (64, 64)  # (W,H)
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
-# ============================
-# Dynamic model loading (swappable)
-# ============================
+
+# MTCNN face cropper (inlined)
+@dataclass
+class FaceCropResult:
+    face_index: int
+    prob: Optional[float]
+    crop: Image.Image
+    eye_angle_before: float
+    residual_angle_after: float
+    used_rotation_sign: str  # "A(-eye_angle)" or "B(+eye_angle)"
+
+
+class MTCNNFaceCropper:
+ 
+    def __init__(
+        self,
+        keep_all: bool = True,
+        min_prob: float = 0.0,
+        width_half: float = 1.3,
+        device: Optional[str] = None,
+        crop_scale: float = 1.15,
+    ):
+        self.keep_all = keep_all
+        self.min_prob = float(min_prob)
+        self.width_half = float(width_half)
+        self.crop_scale = float(crop_scale)
+
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = device
+
+        self.mtcnn = MTCNN(keep_all=self.keep_all, device=self.device)
+
+    @staticmethod
+    def _rotate_image_and_points_cv2(
+        pil_img: Image.Image,
+        points: List[Tuple[float, float]],
+        angle_deg: float,
+        center_xy: Tuple[float, float],
+    ) -> Tuple[Image.Image, List[Tuple[float, float]]]:
+        img = np.array(pil_img)  # RGB
+        h, w = img.shape[:2]
+        cx, cy = center_xy
+
+        M = cv2.getRotationMatrix2D((cx, cy), angle_deg, 1.0)
+
+        rot = cv2.warpAffine(
+            img,
+            M,
+            (w, h),
+            flags=cv2.INTER_CUBIC,
+            borderMode=cv2.BORDER_REPLICATE,
+        )
+
+        pts = np.array(points, dtype=np.float32)
+        pts_h = np.hstack([pts, np.ones((pts.shape[0], 1), dtype=np.float32)])
+        pts_rot = (M @ pts_h.T).T
+
+        rot_pil = Image.fromarray(rot)
+        return rot_pil, [tuple(p) for p in pts_rot]
+
+    @staticmethod
+    def _clamp(val: float, lo: float, hi: float) -> float:
+        return max(lo, min(hi, val))
+
+    @staticmethod
+    def _angle_from_pts(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        return math.degrees(math.atan2(dy, dx))
+
+    def process_pil(self, img: Image.Image) -> List[FaceCropResult]:
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+
+        boxes, probs, lms = self.mtcnn.detect(img, landmarks=True)
+        if boxes is None or lms is None:
+            return []
+
+        if probs is None:
+            probs = [1.0] * len(lms)
+
+        results: List[FaceCropResult] = []
+
+        for i, (prob, lm) in enumerate(zip(probs, lms)):
+            if prob is not None and float(prob) < self.min_prob:
+                continue
+
+            left_eye = tuple(lm[0])
+            right_eye = tuple(lm[1])
+
+            if left_eye[0] > right_eye[0]:
+                left_eye, right_eye = right_eye, left_eye
+
+            dx = right_eye[0] - left_eye[0]
+            dy = right_eye[1] - left_eye[1]
+            eye_angle = math.degrees(math.atan2(dy, dx))
+
+            center = (
+                (left_eye[0] + right_eye[0]) / 2.0,
+                (left_eye[1] + right_eye[1]) / 2.0,
+            )
+
+            # Option A: -eye_angle
+            rot_img_a, (l_a, r_a) = self._rotate_image_and_points_cv2(
+                img, [left_eye, right_eye], angle_deg=-eye_angle, center_xy=center
+            )
+            res_a = abs(self._angle_from_pts(l_a, r_a))
+
+            # Option B: +eye_angle
+            rot_img_b, (l_b, r_b) = self._rotate_image_and_points_cv2(
+                img, [left_eye, right_eye], angle_deg=+eye_angle, center_xy=center
+            )
+            res_b = abs(self._angle_from_pts(l_b, r_b))
+
+            if res_a <= res_b:
+                rot_img, rot_left, rot_right = rot_img_a, l_a, r_a
+                used = "A(-eye_angle)"
+                residual = res_a
+            else:
+                rot_img, rot_left, rot_right = rot_img_b, l_b, r_b
+                used = "B(+eye_angle)"
+                residual = res_b
+
+            # Paper crop after rotation
+            mx = (rot_left[0] + rot_right[0]) / 2.0
+            my = (rot_left[1] + rot_right[1]) / 2.0
+            alpha = math.hypot(rot_right[0] - mx, rot_right[1] - my)
+            alpha = alpha * self.crop_scale
+
+            x1 = mx - self.width_half * alpha
+            x2 = mx + self.width_half * alpha
+            y1 = my - 1.3 * alpha
+            y2 = my + 3.2 * alpha
+
+            W, H = rot_img.size
+            x1 = self._clamp(x1, 0, W)
+            x2 = self._clamp(x2, 0, W)
+            y1 = self._clamp(y1, 0, H)
+            y2 = self._clamp(y2, 0, H)
+
+            if x2 <= x1 or y2 <= y1:
+                continue
+
+            crop = rot_img.crop((x1, y1, x2, y2))
+
+            results.append(
+                FaceCropResult(
+                    face_index=i,
+                    prob=None if prob is None else float(prob),
+                    crop=crop,
+                    eye_angle_before=float(eye_angle),
+                    residual_angle_after=float(residual),
+                    used_rotation_sign=used,
+                )
+            )
+
+        return results
+
+
+
+# Model loading (from same folder as script)
 def _import_from_string(spec: str):
     """
-    spec formats:
-      - "pkg.module:ClassName"
-      - "pkg.module.ClassName"
+    spec:
+      - "module:ClassName"
+      - "module.ClassName"
     """
     if ":" in spec:
         mod, name = spec.split(":", 1)
     else:
         mod, name = spec.rsplit(".", 1)
-
     module = __import__(mod, fromlist=[name])
     return getattr(module, name)
 
 
-def build_model(model_spec: str, num_classes: int, model_kwargs: Dict[str, Any]) -> nn.Module:
+def build_model(model_spec: str, num_classes: int) -> nn.Module:
     ModelCls = _import_from_string(model_spec)
     try:
-        return ModelCls(num_classes=num_classes, **model_kwargs)
+        return ModelCls(num_classes=num_classes)
     except TypeError:
-        return ModelCls(**model_kwargs)
+        return ModelCls()
 
 
-def load_weights_if_available(
-    model: nn.Module, weights_path: Optional[Path], device: torch.device
-) -> Tuple[nn.Module, bool]:
-    model.to(device)
-    model.eval()
+def _pick_default_weights_path() -> Optional[Path]:
+    for name in ["model_state_dict.pt", "model_state_dict.pth", "weights.pt", "weights.pth", "best.pt", "best.pth"]:
+        p = BASE_DIR / name
+        if p.exists():
+            return p
+    cands = sorted(list(BASE_DIR.glob("*.pt")) + list(BASE_DIR.glob("*.pth")))
+    return cands[0] if cands else None
 
-    if weights_path is None:
-        print("[info] --weights not provided -> using random initialized weights")
-        return model, False
 
-    if not weights_path.exists():
-        print(f"[warning] weights not found: {weights_path} -> using random initialized weights")
-        return model, False
-
-    print(f"[info] loading weights: {weights_path}")
+def load_weights(model: nn.Module, weights_path: Path, device: torch.device) -> nn.Module:
     ckpt = torch.load(weights_path, map_location=device)
-
     if isinstance(ckpt, dict) and "state_dict" in ckpt and isinstance(ckpt["state_dict"], dict):
         state = ckpt["state_dict"]
     elif isinstance(ckpt, dict):
@@ -105,81 +249,111 @@ def load_weights_if_available(
 
     cleaned = {}
     for k, v in state.items():
-        cleaned[k[len("module."):] if k.startswith("module.") else k] = v
+        cleaned[k[len("module.") :] if k.startswith("module.") else k] = v
 
     model.load_state_dict(cleaned, strict=True)
     model.to(device)
     model.eval()
-    return model, True
+    return model
 
 
-# ============================
-# Preprocessing (EXACT training style)
-# ============================
-def load_image_bgr(path: Path) -> Optional[np.ndarray]:
+
+# Preprocessing (strict RGB ordering for optional .npy saving)
+# Pipeline:
+#   - detect + rotation normalize + crop
+#   - resize 64x64
+#   - grayscale (1ch)
+#   - stretch back to 3ch
+#   - convert to float [0,1] in RGB channel order (H,W,3)
+#   - optionally save .npy (RGB)
+#   - z-normalize with MEAN/STD
+#   - feed into model via DataLoader
+def read_image_bgr(path: Path) -> Optional[np.ndarray]:
     return cv2.imread(str(path), cv2.IMREAD_COLOR)
 
 
 def crop_face_rgb_uint8(cropper: MTCNNFaceCropper, img_bgr: np.ndarray, face_index: int) -> Optional[np.ndarray]:
-    """
-    Uses your cropper.process_pil (which includes rotation normalization in your implementation)
-    Returns: 64x64 RGB uint8 face crop, or None if no face.
-    """
     pil = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
     results = cropper.process_pil(pil)
     if len(results) == 0 or face_index >= len(results):
         return None
-
     face_pil = results[face_index].crop.convert("RGB").resize(TARGET_SIZE, resample=Image.BILINEAR)
-    return np.array(face_pil)  # RGB uint8
+    return np.array(face_pil)  # RGB uint8, HxWx3
 
 
-def preprocess_face_to_gray3_bgr01(face_rgb_uint8: np.ndarray) -> np.ndarray:
-    """
-    Training-style preprocessing:
-      RGB -> BGR -> GRAYSCALE -> replicate to 3ch (BGR) -> [0,1]
-    Returns: 64x64x3 float32 in [0,1] (gray replicated) in BGR order.
-    """
-    face_bgr = cv2.cvtColor(face_rgb_uint8, cv2.COLOR_RGB2BGR)
-    face_gray = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
-    face_gray3 = cv2.cvtColor(face_gray, cv2.COLOR_GRAY2BGR)
-    return (face_gray3.astype(np.float32) / 255.0).clip(0.0, 1.0)
+def rgb_uint8_to_gray3_rgb01(face_rgb_uint8: np.ndarray) -> np.ndarray:
+    gray = cv2.cvtColor(face_rgb_uint8, cv2.COLOR_RGB2GRAY)  # (H,W) uint8
+    gray3 = np.stack([gray, gray, gray], axis=2)  # (H,W,3) uint8, RGB order (channels identical)
+    return (gray3.astype(np.float32) / 255.0).clip(0.0, 1.0)  # float32, [0,1], RGB
 
 
-def normalize_gray3_bgr01_to_tensor(gray3_bgr_01: np.ndarray) -> torch.Tensor:
-    """
-    Input: HxWx3 float in [0,1], BGR with all channels equal (gray replicated).
-    Output: 1x3xHxW torch tensor normalized by MEAN/STD.
-    """
-    chw = gray3_bgr_01.transpose(2, 0, 1).astype(np.float32, copy=False)  # 3xHxW
+def z_normalize_rgb01_to_tensor(rgb01: np.ndarray) -> torch.Tensor:
+    chw = rgb01.transpose(2, 0, 1).astype(np.float32, copy=False)  # 3xHxW (RGB)
     chw = (chw - MEAN.reshape(3, 1, 1)) / STD.reshape(3, 1, 1)
-    return torch.from_numpy(chw).unsqueeze(0)  # 1x3xHxW
+    return torch.from_numpy(chw)  # 3xHxW
 
 
-def save_normalized_tensor_as_png(
-    x_chw: np.ndarray,
-    out_path: Path,
-) -> bool:
-    """
-    x_chw: 3xHxW float (mean/std-normalized).
-    Saves a *visualization* PNG by min-max scaling per-image to [0,255].
-    """
-    vis = x_chw.transpose(1, 2, 0)  # HWC
-    vmin, vmax = float(vis.min()), float(vis.max())
-    if vmax > vmin:
-        vis = (vis - vmin) / (vmax - vmin)
-    else:
-        vis = np.zeros_like(vis, dtype=np.float32)
-    vis_u8 = (vis * 255.0).clip(0, 255).astype(np.uint8)
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    ok = cv2.imwrite(str(out_path), vis_u8)
-    return bool(ok)
+# Dataset + DataLoader
+@dataclass
+class Sample:
+    path: Path
+    x: Optional[torch.Tensor]
+    npy_path: Optional[Path]
 
 
-# ============================
+class InferenceDataset(Dataset):
+    def __init__(
+        self,
+        image_paths: List[Path],
+        cropper: MTCNNFaceCropper,
+        face_index: int,
+        save_npy: bool,
+        npy_dir: Path,
+    ):
+        self.image_paths = image_paths
+        self.cropper = cropper
+        self.face_index = face_index
+        self.save_npy = save_npy
+        self.npy_dir = npy_dir
+
+        if self.save_npy:
+            self.npy_dir.mkdir(parents=True, exist_ok=True)
+
+    def __len__(self) -> int:
+        return len(self.image_paths)
+
+    def __getitem__(self, idx: int) -> Sample:
+        p = self.image_paths[idx]
+        img_bgr = read_image_bgr(p)
+        if img_bgr is None:
+            return Sample(path=p, x=None, npy_path=None)
+
+        face_rgb_u8 = crop_face_rgb_uint8(self.cropper, img_bgr, face_index=self.face_index)
+        if face_rgb_u8 is None:
+            return Sample(path=p, x=None, npy_path=None)
+
+        # grayscale -> 3ch -> [0,1] in RGB order
+        gray3_rgb01 = rgb_uint8_to_gray3_rgb01(face_rgb_u8)  # (64,64,3) float32, RGB
+
+        saved_path: Optional[Path] = None
+        if self.save_npy:
+            saved_path = self.npy_dir / f"{p.stem}_face{self.face_index}.npy"
+            np.save(str(saved_path), gray3_rgb01.astype(np.float32, copy=False))
+
+        x = z_normalize_rgb01_to_tensor(gray3_rgb01)  # 3x64x64
+        return Sample(path=p, x=x, npy_path=saved_path)
+
+
+def collate_fn(samples: List[Sample]):
+    paths = [s.path for s in samples]
+    xs = [s.x for s in samples]
+    npy_paths = [s.npy_path for s in samples]
+    return paths, xs, npy_paths
+
+
+
 # File iteration
-# ============================
 def iter_images(images_dir: Path, recursive: bool) -> List[Path]:
     if recursive:
         paths = [p for p in images_dir.rglob("*") if p.is_file() and p.suffix.lower() in IMG_EXTS]
@@ -189,169 +363,159 @@ def iter_images(images_dir: Path, recursive: bool) -> List[Path]:
     return paths
 
 
-# ============================
+
 # Main
-# ============================
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--images_dir", required=True, type=str, help="Folder containing images")
-    ap.add_argument(
-        "--out_csv",
-        default="classification_model/classification_scores.csv",
-        type=str,
-        help="CSV output path",
-    )
 
-    ap.add_argument("--model", required=True, type=str, help='Model spec, e.g. "fer.models.cnn_resnet18:ResNet18FER"')
-    ap.add_argument("--model_kwargs_json", default="{}", type=str, help="JSON dict for model kwargs")
+    # NOTE: defaults are defined in code above; user can still override via CLI
+    ap.add_argument("--images_dir", type=str, default=str(DEFAULT_IMAGES_DIR), help="Folder containing images")
+    ap.add_argument("--out_dir", type=str, default=str(DEFAULT_OUT_DIR), help="Folder where CSV will be written")
+    ap.add_argument("--out_name", type=str, default=DEFAULT_OUT_NAME, help="CSV filename")
 
-    ap.add_argument(
-        "--weights",
-        default=None,
-        type=str,
-        help="Optional weights path (.pt). If missing/not found -> random weights.",
-    )
-    ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--model", type=str, default="model:Model", help='expects model.py with class Model in script folder')
+    ap.add_argument("--weights", type=str, default=None, help="auto-picks .pt/.pth in script folder if omitted")
 
-    ap.add_argument("--recursive", action="store_true", help="Recurse into subfolders")
-    ap.add_argument("--face_index", type=int, default=0, help="Which detected face to use (0 = first)")
-    ap.add_argument(
-        "--skip_no_face",
-        action="store_true",
-        help="If set, skip images where no face is found (otherwise write zeros)",
-    )
+    ap.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--batch_size", type=int, default=64)
+    ap.add_argument("--num_workers", type=int, default=0)
+    ap.add_argument("--recursive", action="store_true")
+    ap.add_argument("--face_index", type=int, default=0)
+    ap.add_argument("--skip_no_face", action="store_true", help="skip images with no face (else write zeros)")
 
-    ap.add_argument(
-        "--save_debug_faces",
-        action="store_true",
-        help="Save the actual 64x64 face crops used for inference (RGB crop after rotation+crop+resize)",
-    )
-    ap.add_argument("--debug_dir", default="classification_model/debug_faces", type=str, help="Where to save debug face crops")
+    # cropper knobs
+    ap.add_argument("--crop_scale", type=float, default=1.15)
+    ap.add_argument("--width_half", type=float, default=1.3)
+    ap.add_argument("--min_prob", type=float, default=0.0)
 
-    ap.add_argument(
-        "--save_preprocessed",
-        action="store_true",
-        help="Save mean/std-normalized model inputs as PNG (visualized via min-max scaling)",
-    )
-    ap.add_argument(
-        "--pre_dir",
-        default="classification_model/images_pre_processed",
-        type=str,
-        help="Where to save preprocessed normalized PNGs",
-    )
+    # optional npy saving
+    ap.add_argument("--save_npy", action="store_true", help="save preprocessed npy (RGB, HxWx3, [0,1]) before z-norm")
+    ap.add_argument("--npy_dir", type=str, default=str(DEFAULT_NPY_DIR), help="where to store npy files")
 
     args = ap.parse_args()
 
-    images_dir = (REPO_ROOT / args.images_dir).resolve() if not os.path.isabs(args.images_dir) else Path(args.images_dir)
+    images_dir = Path(args.images_dir).expanduser().resolve()
     if not images_dir.exists():
-        raise FileNotFoundError(images_dir)
+        raise FileNotFoundError(f"images_dir not found: {images_dir}")
 
-    out_csv = (REPO_ROOT / args.out_csv).resolve() if not os.path.isabs(args.out_csv) else Path(args.out_csv)
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out_dir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_csv = out_dir / args.out_name
 
-    weights_path = None
-    if args.weights is not None:
-        weights_path = (REPO_ROOT / args.weights).resolve() if not os.path.isabs(args.weights) else Path(args.weights)
-
-    debug_dir = (REPO_ROOT / args.debug_dir).resolve() if not os.path.isabs(args.debug_dir) else Path(args.debug_dir)
-    pre_dir = (REPO_ROOT / args.pre_dir).resolve() if not os.path.isabs(args.pre_dir) else Path(args.pre_dir)
-
-    if args.save_debug_faces:
-        debug_dir.mkdir(parents=True, exist_ok=True)
-    if args.save_preprocessed:
-        pre_dir.mkdir(parents=True, exist_ok=True)
-        print(f"[info] preprocessed images dir -> {pre_dir}")
-
-    device = torch.device(args.device)
-
-    model_kwargs = json.loads(args.model_kwargs_json)
-    if not isinstance(model_kwargs, dict):
-        raise ValueError("--model_kwargs_json must be a JSON object/dict")
-
-    # Safety: CSV labels must be a permutation of training labels
+    # sanity
     if set(CSV_CLASS_ORDER) != set(TRAIN_CLASS_ORDER):
         raise ValueError(
             "CSV_CLASS_ORDER and TRAIN_CLASS_ORDER must contain the same labels.\n"
             f"TRAIN: {TRAIN_CLASS_ORDER}\nCSV:   {CSV_CLASS_ORDER}"
         )
 
-    cropper = MTCNNFaceCropper(keep_all=True, min_prob=0.0)
+    device = torch.device(args.device)
 
-    model = build_model(args.model, num_classes=len(TRAIN_CLASS_ORDER), model_kwargs=model_kwargs)
-    model, loaded = load_weights_if_available(model, weights_path, device)
+    # init cropper
+    cropper = MTCNNFaceCropper(
+        keep_all=True,
+        min_prob=args.min_prob,
+        width_half=args.width_half,
+        crop_scale=args.crop_scale,
+        device=("cuda" if torch.cuda.is_available() else "cpu"),
+    )
 
+    # model + weights
+    model = build_model(args.model, num_classes=len(TRAIN_CLASS_ORDER))
+
+    if args.weights is not None:
+        wpath = Path(args.weights).expanduser()
+        if not wpath.is_absolute():
+            wpath = (BASE_DIR / wpath).resolve()
+    else:
+        wpath = _pick_default_weights_path()
+
+    if wpath is None or not wpath.exists():
+        raise FileNotFoundError(
+            "No weights found.\n"
+            "Put a .pt/.pth file next to this script (recommended: model_state_dict.pt)\n"
+            "or pass --weights /path/to/weights.pt"
+        )
+
+    model = load_weights(model, wpath, device)
+
+    # collect images
     img_paths = iter_images(images_dir, recursive=args.recursive)
     if len(img_paths) == 0:
         print(f"[warning] no images found in: {images_dir}")
         return 0
 
-    print(f"[info] found {len(img_paths)} images")
-    print(f"[info] writing csv -> {out_csv}")
-    print(f"[info] weights={'loaded' if loaded else 'random'}")
-    print("[info] preprocessing: mtcnn->(rot)->crop->resize64 -> gray -> gray3 -> normalize(mean/std)")
+    npy_dir = Path(args.npy_dir).expanduser().resolve()
+
+    ds = InferenceDataset(
+        img_paths,
+        cropper=cropper,
+        face_index=args.face_index,
+        save_npy=args.save_npy,
+        npy_dir=npy_dir,
+    )
+    dl = DataLoader(
+        ds,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=(device.type == "cuda"),
+        collate_fn=collate_fn,
+    )
 
     train_index = {name: i for i, name in enumerate(TRAIN_CLASS_ORDER)}
     header = ["filepath"] + CSV_CLASS_ORDER
 
-    saved_pre = 0
-    saved_dbg = 0
+    print(f"[info] images_dir: {images_dir}")
+    print(f"[info] csv_out:    {out_csv}")
+    print(f"[info] model:      {args.model}")
+    print(f"[info] weights:    {wpath.name}")
+    if args.save_npy:
+        print(f"[info] npy_out:    {npy_dir}")
+    print("[info] preprocessing: mtcnn->(rot)->crop->resize64 -> gray(1ch)->gray3(RGB)->[0,1]->(save npy)->z-norm->model")
+
     no_face = 0
+    wrote = 0
+    saved_npy = 0
 
     with open(out_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(header)
 
-        for p in img_paths:
-            img_bgr = load_image_bgr(p)
-            if img_bgr is None:
-                print(f"[skip] unreadable image: {p}")
-                continue
+        for paths, xs, npy_paths in dl:
+            valid_idx = [i for i, x in enumerate(xs) if x is not None]
+            batch_probs = {}
 
-            # NOTE: rotation normalization happens inside cropper.process_pil(...)
-            face_rgb = crop_face_rgb_uint8(cropper, img_bgr, face_index=args.face_index)
-            if face_rgb is None:
-                no_face += 1
-                if args.skip_no_face:
-                    print(f"[skip] no face: {p}")
-                    continue
-                w.writerow([str(p)] + [0.0] * len(CSV_CLASS_ORDER))
-                continue
+            if args.save_npy:
+                for npy_p in npy_paths:
+                    if npy_p is not None:
+                        saved_npy += 1
 
-            if args.save_debug_faces:
-                out_dbg = debug_dir / f"{p.stem}_face{args.face_index}.png"
-                ok = cv2.imwrite(str(out_dbg), cv2.cvtColor(face_rgb, cv2.COLOR_RGB2BGR))
-                if ok:
-                    saved_dbg += 1
+            if len(valid_idx) > 0:
+                xb = torch.stack([xs[i] for i in valid_idx], dim=0).to(device)  # Nx3x64x64
+                with torch.no_grad():
+                    logits = model(xb)  # NxC
+                    probs = torch.softmax(logits, dim=1).detach().cpu().numpy().astype(np.float32)
+                for j, i in enumerate(valid_idx):
+                    batch_probs[i] = probs[j]
+
+            for i, p in enumerate(paths):
+                prob = batch_probs.get(i, None)
+                if prob is None:
+                    no_face += 1
+                    if args.skip_no_face:
+                        continue
+                    w.writerow([str(p)] + [0.0] * len(CSV_CLASS_ORDER))
+                    wrote += 1
                 else:
-                    print(f"[warning] failed to write debug face: {out_dbg}")
+                    scores = [float(prob[train_index[label]]) for label in CSV_CLASS_ORDER]
+                    w.writerow([str(p)] + scores)
+                    wrote += 1
 
-            gray3_bgr01 = preprocess_face_to_gray3_bgr01(face_rgb)  # 64x64x3 float [0,1] BGR (gray replicated)
-
-            # model input tensor (normalized)
-            x = normalize_gray3_bgr01_to_tensor(gray3_bgr01).to(device)
-
-            if args.save_preprocessed:
-                # Save visualization of the exact normalized input (CHW)
-                x_chw = x[0].detach().cpu().numpy()  # 3xHxW
-                out_pre = pre_dir / f"{p.stem}_face{args.face_index}_norm.png"
-                ok = save_normalized_tensor_as_png(x_chw, out_pre)
-                if ok:
-                    saved_pre += 1
-                else:
-                    print(f"[warning] failed to write preprocessed image: {out_pre}")
-
-            with torch.no_grad():
-                logits = model(x)  # 1xC
-                probs = torch.softmax(logits, dim=1)[0].detach().cpu().numpy().astype(np.float32)
-
-            scores = [float(probs[train_index[label]]) for label in CSV_CLASS_ORDER]
-            w.writerow([str(p)] + scores)
-
-    if args.save_debug_faces:
-        print(f"[info] saved debug faces: {saved_dbg} -> {debug_dir}")
-    if args.save_preprocessed:
-        print(f"[info] saved preprocessed images: {saved_pre} -> {pre_dir}")
-    print(f"[info] images with no face: {no_face}")
+    print(f"[info] wrote rows: {wrote}")
+    print(f"[info] no-face images: {no_face}")
+    if args.save_npy:
+        print(f"[info] saved npy files: {saved_npy}")
     print("[done]")
     return 0
 
