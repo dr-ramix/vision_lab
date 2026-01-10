@@ -334,27 +334,43 @@ def _save_mappings(run_dir: Path, *, class_to_idx: Dict[str, int], class_order: 
 
 def _load_train_stats_for_previews(images_root: Path) -> Tuple[Optional[List[float]], Optional[List[float]], str]:
     """
-    Your preprocessing writes: <images_root_parent>/dataset_stats_train.json
-    But depending on how you pass images_root (png root or npy root), this file may
-    live either next to it or one level up. We try both.
+    Locate dataset_stats_train.json for preview unnormalization.
+
+    Your current layout writes stats to:
+      <images_root>/only_mtcnn_cropped/color_and_grey/dataset_stats_train.json
+      <images_root>/only_mtcnn_cropped/grey/dataset_stats_train.json
+
+    We also keep the older fallback locations.
     """
+    images_root = Path(images_root)
+
+    #GRAY
+    #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json",
     candidates = [
-        images_root / "dataset_stats_train.json",
-        images_root.parent / "dataset_stats_train.json",
+        images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json",
     ]
+
+    seen: set[str] = set()
     for stats_path in candidates:
+        sp = str(stats_path.resolve()) if stats_path.exists() else str(stats_path)
+        if sp in seen:
+            continue
+        seen.add(sp)
+
         if not stats_path.exists():
             continue
+
         try:
             data = json.loads(stats_path.read_text(encoding="utf-8"))
             mean = data.get("mean", None)
             std = data.get("std", None)
             if mean is None or std is None:
                 return None, None, str(stats_path)
-            return list(mean), list(std), str(stats_path)
+            return [float(x) for x in mean], [float(x) for x in std], str(stats_path)
         except Exception:
             return None, None, str(stats_path)
 
+    # not found
     return None, None, str(candidates[0])
 
 
