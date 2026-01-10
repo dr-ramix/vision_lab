@@ -19,7 +19,7 @@ from fer.models.mobilenetv3 import (
     mobilenetv3_xlarge_fer,
 )
 from fer.models.emocatnets_v2 import emocatnets_v2_fer
-
+from fer.models.cnn_resnet101 import ResNet101FER
 
 # ------------------------------------------------------------
 # Model registry
@@ -353,6 +353,17 @@ register_model(
     "emocatnetsv2_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_fer(
         size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+
+
+register_model(
+    "resnet101",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet101FER(
         num_classes=num_classes,
         in_channels=in_channels,
     ),
