@@ -3,7 +3,7 @@ EmoCatNets-v2 (64x64 FER)
 
 Changes vs your v1:
 - Residual STN (conservative warp): x_out = (1-a)*x + a*warp(x), learnable a
-- Stem does NOT downsample (64 -> 64) and is "better" (2x 3x3 conv + GELU + LN)
+- Stem does NOT downsample (64 -> 64) and is RESIDUAL now
 - Stages: 64 -> 32 -> 16 -> 8 with (C, C, C, T)
 - CBAM after each stage (channel + spatial attention)
 - Transformer attention at 8x8 tokens (64 tokens) with:
@@ -345,6 +345,45 @@ class RelativeTransformerBlockV2(nn.Module):
 
 
 # ============================================================
+# Residual Stem (NO downsampling): 64 -> 64
+# ============================================================
+
+class ResidualStem(nn.Module):
+    """
+    Residual stem that keeps 64->64 (no downsampling).
+    Uses your original "2x 3x3 conv + GELU + LN" as the main path,
+    plus a skip projection when needed.
+
+    Main:
+      conv3x3 -> GELU -> conv3x3 -> LN(ch_first)
+    Skip:
+      identity if in==out else conv1x1
+    Output:
+      LN( main + skip )
+    """
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.act = nn.GELU()
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+
+        self.skip = None
+        if in_channels != out_channels:
+            self.skip = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+
+        self.norm = LayerNorm(out_channels, eps=1e-6, data_format="channels_first")
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        identity = x if self.skip is None else self.skip(x)
+        out = self.conv1(x)
+        out = self.act(out)
+        out = self.conv2(out)
+        out = out + identity
+        out = self.norm(out)
+        return out
+
+
+# ============================================================
 # Config / Sizes
 # ============================================================
 
@@ -377,7 +416,7 @@ EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
 class EmoCatNetsV2(nn.Module):
     """
     EmoCatNets-v2:
-      Residual STN -> stem(64->64) -> stage1(C@64)
+      Residual STN -> residual stem(64->64) -> stage1(C@64)
       -> down1(64->32) -> stage2(C@32)
       -> down2(32->16) -> stage3(C@16) [save feat16]
       -> down3(16->8)  -> stage4(T@8 tokens) [save feat8]
@@ -410,13 +449,8 @@ class EmoCatNetsV2(nn.Module):
         # Residual STN
         self.stn = ResidualSTN(in_channels=in_channels, hidden=stn_hidden, alpha_init=stn_alpha_init)
 
-        # Stem (NO downsample): 64 -> 64
-        self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1, bias=False),
-            nn.GELU(),
-            nn.Conv2d(d0, d0, kernel_size=3, stride=1, padding=1, bias=False),
-            LayerNorm(d0, eps=1e-6, data_format="channels_first"),
-        )
+        # Residual Stem (NO downsample): 64 -> 64
+        self.stem = ResidualStem(in_channels=in_channels, out_channels=d0)
 
         # Downsampling: 64->32->16->8
         self.down1 = nn.Sequential(
@@ -498,7 +532,7 @@ class EmoCatNetsV2(nn.Module):
         # STN (residual)
         x = self.stn(x)          # (B, Cin, 64, 64)
 
-        # Stem (64->64)
+        # Residual Stem (64->64)
         x = self.stem(x)         # (B, d0, 64, 64)
 
         # Stage1 @64
