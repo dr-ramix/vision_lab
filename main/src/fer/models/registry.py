@@ -20,8 +20,7 @@ from fer.models.mobilenetv3 import (
 )
 from fer.models.emocatnets_v2 import emocatnets_v2_fer
 from fer.models.cnn_resnet101 import ResNet101FER
-
-
+from fer.models.convnext_fer import convnextfer_v2
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
