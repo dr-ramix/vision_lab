@@ -75,36 +75,63 @@ class LayerNorm(nn.Module):
 
 # ============================================================
 # Residual Stem (NO downsampling): 64 -> 64
+# ConvNeXt-style residual stem
 # ============================================================
 
 class ResidualStem(nn.Module):
     """
-    Residual stem that keeps spatial resolution (64->64).
-    If in_channels != out_channels, uses a 1x1 skip projection.
-
-    Main:
-      3x3 conv -> GELU -> 3x3 conv -> LN (channels_first)
-    Skip:
-      identity OR 1x1 conv
+    Residual stem that keeps spatial resolution (H,W unchanged).
+    - No downsampling (stride=1 everywhere).
+    - Projects in_channels -> out_channels with 3x3 conv (s=1).
+    - Main branch is ConvNeXt-style:
+        DWConv7 -> LN(NHWC) -> Linear(4x) -> GELU -> Linear -> LayerScale
+    - Residual add + optional DropPath.
     """
-    def __init__(self, in_channels: int, out_channels: int):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        layer_scale_init_value: float = 1e-6,
+        drop_path: float = 0.0,
+    ):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.act   = nn.GELU()
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-        self.norm  = LayerNorm(out_channels, eps=1e-6, data_format="channels_first")
 
-        self.skip = None
-        if in_channels != out_channels:
-            self.skip = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0, bias=False)
+        # project to out_channels without downsampling
+        self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+
+        # ConvNeXt-style residual branch (channels = out_channels)
+        self.dwconv = nn.Conv2d(out_channels, out_channels, kernel_size=7, stride=1, padding=3, groups=out_channels)
+        self.ln = nn.LayerNorm(out_channels, eps=1e-6)  # NHWC
+        self.pw1 = nn.Linear(out_channels, out_channels * 4)
+        self.act = nn.GELU()
+        self.pw2 = nn.Linear(out_channels * 4, out_channels)
+
+        self.gamma = (
+            nn.Parameter(layer_scale_init_value * torch.ones(out_channels), requires_grad=True)
+            if layer_scale_init_value > 0 else None
+        )
+        self.droppath = StochasticDepth(p=drop_path, mode="row") if drop_path > 0 else nn.Identity()
+
+        # small stabilizing norm at the end
+        self.out_norm = LayerNorm(out_channels, eps=1e-6, data_format="channels_first")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        identity = x if self.skip is None else self.skip(x)
-        out = self.conv1(x)
+        x = self.proj(x)          # (B, C, H, W)  no downsampling
+        identity = x
+
+        out = self.dwconv(x)      # (B, C, H, W)
+        out = out.permute(0, 2, 3, 1)  # (B, H, W, C)
+        out = self.ln(out)
+        out = self.pw1(out)
         out = self.act(out)
-        out = self.conv2(out)
+        out = self.pw2(out)
+        if self.gamma is not None:
+            out = self.gamma * out
+        out = out.permute(0, 3, 1, 2)  # (B, C, H, W)
+
+        out = self.droppath(out)
         out = out + identity
-        out = self.norm(out)
+        out = self.out_norm(out)
         return out
 
 
@@ -169,8 +196,13 @@ class ConvNeXtFERv2(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # Stem: NO downsampling, residual
-        self.stem = ResidualStem(in_channels=in_channels, out_channels=d0)
+        # Stem: NO downsampling, residual (ConvNeXt-style)
+        self.stem = ResidualStem(
+            in_channels=in_channels,
+            out_channels=d0,
+            layer_scale_init_value=layer_scale_init_value,
+            drop_path=0.0,  # keep stem stable; you can set small dp if you want
+        )
 
         # Downsampling: 64->32->16->8 (NO 8->4)
         self.downsample_layer_1 = nn.Sequential(
