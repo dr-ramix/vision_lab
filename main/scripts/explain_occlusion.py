@@ -8,7 +8,7 @@ from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
 from fer.models.cnn_resnet18 import ResNet18FER
-from fer.xai.occlusion import occlusion_saliency
+from fer.xai.occlusion import OcclusionSaliency
 
 DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
 WEIGHTS_PATH = "../weights/resnet18fer/model_state_dict.pt"
@@ -44,26 +44,31 @@ model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=device))
 model.to(device)
 model.eval()
 
-heatmap = occlusion_saliency(
+occlusion = OcclusionSaliency(
     model=model,
+    window_size=(8, 8),     
+    stride=(4, 4),
+    occlusion_value=0.0,    
+    batch_size=32,
+)
+
+heatmap = occlusion(
     input_tensor=x,
-    target_class=target_idx,
+    target_class=target_idx
 )
 
 heatmap_resized = cv2.resize(heatmap, (64, 64))
 
+importance = heatmap_resized
+
+threshold = np.percentile(importance, 80)
+mask = importance >= threshold
+
 img = x[0].permute(1, 2, 0).detach().cpu().numpy()
 img = (img - img.min()) / (img.max() - img.min() + 1e-8)
 
-heatmap_color = cv2.applyColorMap(
-    np.uint8(255 * heatmap_resized),
-    cv2.COLORMAP_JET
-)
-heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB)
-heatmap_color = heatmap_color / 255.0
-
-overlay = 0.6 * img + 0.4 * heatmap_color
-overlay = np.clip(overlay, 0, 1)
+masked_img = img.copy()
+masked_img[mask] = img.mean()
 
 fig, axes = plt.subplots(1, 3, figsize=(12, 4))
 
@@ -71,12 +76,12 @@ axes[0].imshow(img)
 axes[0].set_title("Input Image")
 axes[0].axis("off")
 
-axes[1].imshow(heatmap_resized, cmap="jet")
-axes[1].set_title("Occlusion Heatmap")
+axes[1].imshow(importance, cmap="RdBu")
+axes[1].set_title("Occlusion Importance")
 axes[1].axis("off")
 
-axes[2].imshow(overlay)
-axes[2].set_title("Overlay")
+axes[2].imshow(masked_img)
+axes[2].set_title("Image w/ Important Regions Removed")
 axes[2].axis("off")
 
 plt.tight_layout()
