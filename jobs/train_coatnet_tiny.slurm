@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=coatnet_tiny_0
+#SBATCH --job-name=coatnet_tiny
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=80:00:00
 #SBATCH --cpus-per-task=8
