@@ -79,6 +79,7 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-08_02-21-42__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6955040871934605,0.6416439086125358,hosseinis,2026-01-09T00:02:52
 2026-01-09_23-57-42__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:03:43
 2026-01-10_00-04-59__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:07:43
+
 2026-01-08_21-46-53__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.7694814010317675,0.7455357142857143,bargozideh,2026-01-09T04:38:25
 2026-01-09_12-28-11__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7064892750475156,0.6825026652452025,bargozideh,2026-01-09T14:45:15
 2026-01-09_12-39-38__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7150420852565843,0.677838486140725,bargozideh,2026-01-09T16:37:18
@@ -86,7 +87,9 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-09_12-38-59__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.7837360847135487,0.7447361407249466,bargozideh,2026-01-09T19:47:15
 2026-01-09_21-22-07__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16331794732554983,0.1720415778251599,bargozideh,2026-01-09T21:24:48
 2026-01-09_22-10-05__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16331794732554983,0.1720415778251599,bargozideh,2026-01-09T22:13:20
-2026-01-10_00-02-41__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16915557969046974,0.1755730277185501,bargozideh,2026-01-10T00:05:572026-01-10_11-33-01__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7234709167688326,0.6889658848614072,hosseinis,2026-01-10T13:46:15
+2026-01-10_00-02-41__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16915557969046974,0.1755730277185501,bargozideh,2026-01-10T00:05:57
+
+2026-01-10_11-33-01__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7234709167688326,0.6889658848614072,hosseinis,2026-01-10T13:46:15
 2026-01-10_11-33-03__coatnet_small__user-hosseinis__e30877,coatnet_small,accuracy,0.7199291649639014,0.6900986140724946,hosseinis,2026-01-10T14:08:42
 2026-01-10_11-33-03__coatnet_base__user-hosseinis__e30877,coatnet_base,accuracy,0.724969350224765,0.7017590618336887,hosseinis,2026-01-10T14:38:37
 2026-01-10_11-33-03__convnext_tiny__user-hosseinis__e30877,convnext_tiny,accuracy,0.7451300912682196,0.710887526652452,hosseinis,2026-01-10T15:07:15
@@ -95,3 +98,12 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-10_11-33-17__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.2178177360032693,0.2412046908315565,hosseinis,2026-01-10T16:38:15
 2026-01-10_11-36-59__emocatnets_small__user-hosseinis__e30877,emocatnets_small,accuracy,0.7509876038686828,0.7112873134328358,hosseinis,2026-01-10T17:02:42
 2026-01-11_04-39-48__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.7583435499250784,0.7342084221748401,hosseinis,2026-01-11T15:03:05
+
+2026-01-10_04-38-23__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16915557969046974,0.1755730277185501,bargozideh,2026-01-10T04:45:08
+2026-01-10_21-14-00__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7117838718436058,0.6818363539445629,bargozideh,2026-01-11T00:09:39
+2026-01-10_20-59-36__coatnet_small__user-bargozideh__e30877,coatnet_small,accuracy,0.7140917730111322,0.6861007462686567,bargozideh,2026-01-11T01:41:44
+2026-01-10_22-11-49__convnext_tiny__user-bargozideh__e30877,convnext_tiny,accuracy,0.7310616345370622,0.7021588486140725,bargozideh,2026-01-11T02:58:11
+2026-01-10_20-57-36__coatnet_base__user-bargozideh__e30877,coatnet_base,accuracy,0.7272603855552539,0.6948960554371002,bargozideh,2026-01-11T03:55:41
+2026-01-11_04-39-38__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.2204724409448819,0.1423907249466951,bargozideh,2026-01-11T09:50:30
+2026-01-11_04-40-00__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.7496606027694814,0.7103544776119403,bargozideh,2026-01-11T11:14:42
+
