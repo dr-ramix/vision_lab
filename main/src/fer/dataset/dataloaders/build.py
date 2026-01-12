@@ -106,6 +106,37 @@ def _build_mixed(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str,
     class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
     return dls, list(CLASS_ORDER), dict(class_to_idx)
 
+@register_dataloader(
+    "hist_eq",
+    "hist-eq",
+    "histeq",
+    "histogram_equalized",
+    "histogram-equalized",
+    "hist_eq_mtcnn",
+    "mtcnn_hist_eq",
+)
+def _build_mtcnn_cropped_norm(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
+    from fer.dataset.dataloaders.dataloader_hist_eq import (
+        build_dataloaders as build,
+        CLASS_ORDER,
+        CLASS_TO_IDX,
+    )
+
+    stats_json = getattr(settings, "stats_json", "")
+    stats_path = Path(stats_json) if stats_json else None
+
+    dls = build(
+        images_root=images_root,
+        batch_size=int(getattr(settings, "bs", 64)),
+        num_workers=int(getattr(settings, "num_workers", 4)),
+        pin_memory=bool(getattr(settings, "pin_memory", True)),
+        stats_json=stats_path,
+    )
+
+    class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
+    return dls, list(CLASS_ORDER), dict(class_to_idx)
+
+
 @register_dataloader("fer", "fer2013", "FER2013")
 def _build_legacy(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
     from fer.dataset.dataloaders.dataloader import (

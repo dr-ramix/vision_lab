@@ -48,6 +48,12 @@ def _load_dataset_stats(images_root: Path) -> Dict[str, Any] | None:
       - images_root.parent / "dataset_stats_train.json" (common)
       - images_root.parent.parent / "dataset_stats_train.json" (fallback)
     """
+    #MAIN/BUNT:
+    #images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
+    #GRAY:
+    #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
+    #HIST-EQ:
+    #images_root / "images_mtcnn_cropped_norm" / "dataset_stats_train.json"
     candidates = [
         images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
     ]

@@ -23,6 +23,7 @@ class TrainSettings:
     # ==================================================
     # Data / loader
     # ==================================================
+    #MAIN/BUNT: "main", GREY : "grey", HIST-EQ: "histeq"
     dataloader: str = "main"                # main | legacy | ... (see fer.dataset.dataloaders.build)
     in_channels: int = 3                    # model input channels
     image_size: int = 64                    # used for exports / dummy inputs

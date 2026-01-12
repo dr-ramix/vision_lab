@@ -343,9 +343,13 @@ def _load_train_stats_for_previews(images_root: Path) -> Tuple[Optional[List[flo
     We also keep the older fallback locations.
     """
     images_root = Path(images_root)
-
-    #GRAY
-    #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json",
+    
+    #MAIN/BUNT:
+    #images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
+    #GRAY:
+    #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
+    #HIST-EQ:
+    #images_root / "images_mtcnn_cropped_norm" / "dataset_stats_train.json"
     candidates = [
         images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json",
     ]
