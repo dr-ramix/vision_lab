@@ -121,15 +121,19 @@ class MBConv(nn.Module):
         stride = 2 if downsample else 1
         hidden_dim = int(inp * expansion)
 
-        if downsample:
-            self.pool = nn.MaxPool2d(3, 2, 1)
-            self.proj = nn.Conv2d(inp, oup, 1, bias=False)
+        self.use_proj = downsample or (inp != oup)
+
+        if self.use_proj:
+            self.proj = nn.Sequential(
+                nn.Conv2d(inp, oup, 1, stride=stride, bias=False),
+                nn.BatchNorm2d(oup)
+            )
 
         self.conv = nn.Sequential(
-            nn.Conv2d(inp, hidden_dim, 1, stride, 0, bias=False),
+            nn.Conv2d(inp, hidden_dim, 1, 1, 0, bias=False),
             nn.BatchNorm2d(hidden_dim),
             nn.GELU(),
-            nn.Conv2d(hidden_dim, hidden_dim, 3, 1, 1, groups=hidden_dim, bias=False),
+            nn.Conv2d(hidden_dim, hidden_dim, 3, stride, 1, groups=hidden_dim, bias=False),
             nn.BatchNorm2d(hidden_dim),
             nn.GELU(),
             SE(hidden_dim),
@@ -138,9 +142,8 @@ class MBConv(nn.Module):
         )
 
     def forward(self, x):
-        if hasattr(self, 'pool'):
-            return self.proj(self.pool(x)) + self.conv(x)
-        return x + self.conv(x)
+        res = self.proj(x) if self.use_proj else x
+        return res + self.conv(x)
 
 class Attention(nn.Module):
     def __init__(self, inp, oup, image_size, heads=8, dim_head=32, dropout=0.):
@@ -274,7 +277,7 @@ class CoAtNetV2(nn.Module):
                                    self.config['num_channels'][1],
                                    self.config['num_blocks'][1],
                                    self.config['expand_ratio'][0],
-                                   downsample_first=False)
+                                   downsample_first=True)
         self.s2 = self._make_block(block_types[1], inp_h >> 1, inp_w >> 1,
                                    self.config['num_channels'][1],
                                    self.config['num_channels'][2],
