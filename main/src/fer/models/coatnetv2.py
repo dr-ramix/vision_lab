@@ -70,9 +70,9 @@ class SE(nn.Module):
 
 
 class PreNorm(nn.Module):
-    def __init__(self, dim, fn, norm):
+    def __init__(self, dim, fn):
         super().__init__()
-        self.norm = norm(dim)
+        self.norm = nn.LayerNorm(dim)
         self.fn = fn
 
     def forward(self, x, **kwargs):
@@ -201,42 +201,41 @@ class Attention(nn.Module):
         out = self.to_out(out)
         return out
 
-
-
 class Transformer(nn.Module):
-    def __init__(self, inp, oup, image_size, heads=8, dim_head=32, downsample=False, dropout=0.):
+    def __init__(self, inp, oup, image_size, heads=8, dim_head=64, downsample=False):
         super().__init__()
-        hidden_dim = int(oup * 4)
-
-        self.ih, self.iw = image_size
         self.downsample = downsample
 
-        if self.downsample:
-            self.pool = nn.MaxPool2d(3, 2, 1)
-            self.proj = nn.Conv2d(inp, oup, 1, 1, 0, bias=False)
+        if downsample:
+            self.pool = nn.MaxPool2d(2, 2)
+            self.proj = nn.Conv2d(inp, oup, 1, bias=False)
 
-        self.attn = Attention(inp, oup, image_size, heads, dim_head, dropout)
-        self.ff = FeedForward(oup, hidden_dim, dropout)
+        attn_dim = oup if downsample else inp
 
         self.attn = nn.Sequential(
-            Rearrange('b c ih iw -> b (ih iw) c'),
-            PreNorm(inp, self.attn, nn.LayerNorm),
-            Rearrange('b (ih iw) c -> b c ih iw', ih=self.ih, iw=self.iw)
-        )
-
-        self.ff = nn.Sequential(
-            Rearrange('b c ih iw -> b (ih iw) c'),
-            PreNorm(oup, self.ff, nn.LayerNorm),
-            Rearrange('b (ih iw) c -> b c ih iw', ih=self.ih, iw=self.iw)
+            PreNorm(
+                attn_dim,
+                Attention(
+                    inp=attn_dim,
+                    oup=attn_dim,
+                    image_size=image_size,
+                    heads=heads,
+                    dim_head=dim_head
+                )
+            ),
+            PreNorm(
+                attn_dim,
+                FeedForward(attn_dim, hidden_dim=attn_dim * 4)
+            )
         )
 
     def forward(self, x):
         if self.downsample:
-            x_res = self.proj(self.pool(x))
-            x = x_res + self.attn(x_res)
-        else:
-            x = x + self.attn(x)
-        x = x + self.ff(x)
+            x = self.proj(self.pool(x))
+        b, c, h, w = x.shape
+        x = rearrange(x, 'b c h w -> b (h w) c')
+        x = x + self.attn(x)
+        x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         return x
 
 class ResidualStem(nn.Module):
