@@ -117,3 +117,5 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-11_13-27-47__emocatnetsv2_base__user-hosseinis__e30877,emocatnetsv2_base,accuracy,0.7676065931072061,0.7348081023454158,hosseinis,2026-01-12T09:25:33
 2026-01-11_13-09-09__convnextv2_base__user-hosseinis__e30877,convnextv2_base,accuracy,0.7671979294374064,0.7336087420042644,hosseinis,2026-01-12T11:19:20
 2026-01-11_13-13-17__convnextv2_base__user-hosseinis__e30877,convnextv2_base,accuracy,0.7671979294374064,0.7365405117270789,hosseinis,2026-01-12T11:24:30
+
+2026-01-12_14-18-56__coatnetv2_tiny__user-sallauka__e30877,coatnetv2_tiny,accuracy,0.7757987763426241,0.7392723880597015,sallauka,2026-01-12T16:07:13
