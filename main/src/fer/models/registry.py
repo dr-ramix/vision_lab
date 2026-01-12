@@ -167,7 +167,7 @@ register_model(
 
 register_model(
     "coatnetv2_tiny",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-0",
@@ -178,7 +178,7 @@ register_model(
 
 register_model(
     "coatnetv2_small",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-1",
@@ -189,7 +189,7 @@ register_model(
 
 register_model(
     "coatnetv2_base",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-2",
@@ -200,7 +200,7 @@ register_model(
 
 register_model(
     "coatnetv2_large",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-3",
@@ -211,7 +211,7 @@ register_model(
 
 register_model(
     "coatnetv2_xlarge",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-4",
@@ -222,7 +222,7 @@ register_model(
 
 register_model(
     "coatnetv2_huge",
-    lambda num_classes, in_channels=3, **_: CoAtNet(
+    lambda num_classes, in_channels=3, **_: CoAtNetV2(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-5",
