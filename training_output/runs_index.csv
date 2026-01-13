@@ -121,3 +121,15 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-12_14-18-56__coatnetv2_tiny__user-sallauka__e30877,coatnetv2_tiny,accuracy,0.7757987763426241,0.7392723880597015,sallauka,2026-01-12T16:07:13
 2026-01-12_16-00-08__coatnetv2_base__user-sallauka__e30877,coatnetv2_base,accuracy,0.7688647178789939,0.7177505330490405,sallauka,2026-01-13T05:25:06
 2026-01-13_01-02-53__coatnetv2_small__user-sallauka__e30877,coatnetv2_small,accuracy,0.7649218218898708,0.732542643923241,sallauka,2026-01-13T08:31:42
+
+2026-01-11_22-20-34__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.788759163725224,0.7406716417910447,bargozideh,2026-01-12T03:47:15
+2026-01-11_22-20-35__resnet101__user-bargozideh__e30877,resnet101,accuracy,0.7940537605213142,0.738206289978678,bargozideh,2026-01-12T08:28:01
+2026-01-11_22-20-39__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.7124626663046429,0.652518656716418,bargozideh,2026-01-12T08:30:41
+2026-01-11_22-20-42__emocatnetsv2_small__user-bargozideh__e30877,emocatnetsv2_small,accuracy,0.7702959543850122,0.7302771855010661,bargozideh,2026-01-12T09:09:34
+2026-01-12_03-58-54__convnextv2_tiny__user-bargozideh__e30877,convnextv2_tiny,accuracy,0.77518327450448,0.7230810234541578,bargozideh,2026-01-12T13:38:29
+2026-01-12_03-47-30__convnextv2_small__user-bargozideh__e30877,convnextv2_small,accuracy,0.7681238121096932,0.7222148187633263,bargozideh,2026-01-12T19:04:33
+2026-01-12_02-57-25__convnextv2_base__user-bargozideh__e30877,convnextv2_base,accuracy,0.7736899266901982,0.7240138592750534,bargozideh,2026-01-13T04:57:15
+2026-01-13_14-00-40__mobilenetv3_base__user-bargozideh__e30877,mobilenetv3_base,accuracy,0.6961715992397502,0.6575826226012793,bargozideh,2026-01-13T16:50:12
+2026-01-13_14-06-36__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.8017920173771382,0.7377398720682303,bargozideh,2026-01-13T19:13:24
+2026-01-13_14-58-42__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.7982622861797448,0.7417377398720683,bargozideh,2026-01-13T19:59:30
+2026-01-12_06-01-21__emocatnetsv2_tiny__user-bargozideh__e30877,emocatnetsv2_tiny,accuracy,0.7754547922888949,0.7228811300639659,bargozideh,2026-01-13T20:21:37
