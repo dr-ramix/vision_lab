@@ -29,6 +29,12 @@ main/src/fer/dataset/standardized/ferplus/ferplus_raw/*
 main/src/fer/dataset/standardized/ferplus/ferplus_mtcnn_cropped_norm/*
 !main/src/fer/dataset/standardized/ferplus/ferplus_mtcnn_cropped_norm/.gitkeep
 
+main/src/fer/dataset/standardized/fer2013/fer2013_mtcnn_cropped_norm/*
+!main/src/fer/dataset/standardized/ferplus/fer2013_mtcnn_cropped_norm/.gitkeep
+
+main/src/fer/dataset/standardized/fer2013/fer2013_raw/*
+!main/src/fer/dataset/standardized/fer2013/fer2013_raw/.gitkeep
+
 main/src/fer/dataset/standardized/images_mtcnn_cropped/png/*
 !main/src/fer/dataset/standardized/images_mtcnn_cropped/png/.gitkeep
 

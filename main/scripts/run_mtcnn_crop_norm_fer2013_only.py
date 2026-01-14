@@ -11,7 +11,8 @@ from fer.pre_processing.basic_img_norms import BasicImageProcessor
 SPLITS = ["train", "val", "test"]
 CLASSES = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
 EXTS = (".jpg", ".jpeg", ".png")
-OUT_EXT = ".png"
+PNG_EXT = ".png"
+NPY_EXT = ".npy"
 
 
 def is_image_file(p: Path) -> bool:
@@ -24,10 +25,19 @@ def pil_rgb_to_bgr_uint8(pil_img) -> np.ndarray:
     return cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
 
 
-def gray_to_3ch(gray_u8: np.ndarray) -> np.ndarray:
-    """(H,W) uint8 -> (H,W,3) uint8"""
-    # gleichwertig zu np.stack([gray,gray,gray], axis=-1)
+def bgr_to_rgb_uint8(bgr_u8: np.ndarray) -> np.ndarray:
+    """cv2 BGR uint8 -> RGB uint8"""
+    return cv2.cvtColor(bgr_u8, cv2.COLOR_BGR2RGB)
+
+
+def gray_to_3ch_bgr_u8(gray_u8: np.ndarray) -> np.ndarray:
+    """(H,W) uint8 -> (H,W,3) uint8 in BGR (cv2 convention)"""
     return cv2.cvtColor(gray_u8, cv2.COLOR_GRAY2BGR)
+
+
+def to_float01_rgb(rgb_u8: np.ndarray) -> np.ndarray:
+    """RGB uint8 -> RGB float32 in [0,1]"""
+    return (rgb_u8.astype(np.float32) / 255.0).clip(0.0, 1.0)
 
 
 def run_preprocessing(
@@ -59,16 +69,26 @@ def run_preprocessing(
         tanh_scale=tanh_scale,
     )
 
+    # out_root/.../fer2013_mtcnn_cropped_norm
     out_root.mkdir(parents=True, exist_ok=True)
+
+    png_root = out_root / "png"
+    npy_root = out_root / "npy"
+
+    if overwrite_outputs:
+        if png_root.exists():
+            shutil.rmtree(png_root)
+        if npy_root.exists():
+            shutil.rmtree(npy_root)
 
     for split in SPLITS:
         for cls in CLASSES:
             in_dir = images_raw_root / split / cls
-            out_dir = out_root / split / cls
+            out_dir_png = png_root / split / cls
+            out_dir_npy = npy_root / split / cls
 
-            if overwrite_outputs and out_dir.exists():
-                shutil.rmtree(out_dir)
-            out_dir.mkdir(parents=True, exist_ok=True)
+            out_dir_png.mkdir(parents=True, exist_ok=True)
+            out_dir_npy.mkdir(parents=True, exist_ok=True)
 
             if not in_dir.exists():
                 print(f"[skip] {split}/{cls}: input dir missing -> {in_dir}")
@@ -86,23 +106,35 @@ def run_preprocessing(
                     crop_bgr = pil_rgb_to_bgr_uint8(r.crop)
                     proc = basic.process_bgr(crop_bgr)
 
-                    # normiertes Grau auf 3 Kanäle stacken
-                    norm_bgr_3ch = gray_to_3ch(proc.normalized_gray_vis)
+                    # proc.normalized_gray_vis: (H,W) uint8 (vis), already normalized output
+                    # 1) PNG speichern: als 3ch (BGR) damit cv2.imwrite korrekt ist
+                    png_bgr_3ch = gray_to_3ch_bgr_u8(proc.normalized_gray_vis)
+
+                    # 2) NPY speichern: float32 [0,1] mit RGB channel order
+                    #    Da es grau ist, sind R=G=B identisch, aber wir liefern explizit RGB.
+                    png_rgb_3ch_u8 = bgr_to_rgb_uint8(png_bgr_3ch)
+                    npy_rgb_float = to_float01_rgb(png_rgb_3ch_u8)  # (H,W,3), float32 in [0,1]
 
                     prob_str = "pNA" if r.prob is None else f"p{r.prob:.3f}"
-                    out_path = out_dir / f"{img_path.stem}_face{r.face_index}_{prob_str}{OUT_EXT}"
+                    base = f"{img_path.stem}_face{r.face_index}_{prob_str}"
 
-                    cv2.imwrite(str(out_path), norm_bgr_3ch)
+                    out_path_png = out_dir_png / f"{base}{PNG_EXT}"
+                    out_path_npy = out_dir_npy / f"{base}{NPY_EXT}"
 
-    print(f"\nDone. Output root: {out_root}")
+                    cv2.imwrite(str(out_path_png), png_bgr_3ch)
+                    np.save(str(out_path_npy), npy_rgb_float)
+
+    print(f"\nDone.")
+    print(f"PNG root: {png_root}")
+    print(f"NPY root: {npy_root}")
 
 
 def main():
     project_root = Path(__file__).resolve().parents[1]  # .../main
-    dataset_root = project_root / "src" / "fer" / "dataset" / "standardized" / "ferplus"
+    dataset_root = project_root / "src" / "fer" / "dataset" / "standardized" / "fer2013"
 
-    images_raw_root = dataset_root / "ferplus_raw"
-    out_root = dataset_root / "ferplus_mtcnn_cropped_norm"
+    images_raw_root = dataset_root / "fer2013_raw"
+    out_root = dataset_root / "fer2013_mtcnn_cropped_norm"
 
     run_preprocessing(
         images_raw_root=images_raw_root,

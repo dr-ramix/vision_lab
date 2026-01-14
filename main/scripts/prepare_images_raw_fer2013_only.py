@@ -18,9 +18,15 @@ try:
 except Exception:
     cv2 = None
 
+# kagglehub for download
+try:
+    import kagglehub
+except Exception:
+    kagglehub = None
+
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
-# Standard-Klassen (genau deine 6)
+# Standard-Klassen 
 STD_CLASSES = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
 
 # FER2013 emotion mapping (klassisch: 0..6 = anger, disgust, fear, happiness, sadness, surprise, neutral)
@@ -289,6 +295,32 @@ def process_fer2013_csv(csv_path: Path, out_raw: Path, val_frac: float, seed: in
     }
 
 
+def ensure_fer2013_downloaded(ds_root: Path) -> None:
+    """
+    Download FER2013 via kagglehub into a temp/cache path and copy into sources/fer2013
+    so the rest of the script can operate on ds_root deterministically.
+    """
+    if ds_root.exists() and any(ds_root.rglob("*")):
+        return  # already there
+
+    if kagglehub is None:
+        raise RuntimeError(
+            "kagglehub not available. Install with: pip install kagglehub "
+            "(and ensure Kaggle auth is configured)."
+        )
+
+    downloaded = Path(kagglehub.dataset_download("msambare/fer2013"))
+    if not downloaded.exists():
+        raise RuntimeError(f"kagglehub returned a non-existing path: {downloaded}")
+
+    # Fresh copy into sources/fer2013
+    if ds_root.exists():
+        shutil.rmtree(ds_root)
+    safe_mkdir(ds_root.parent)
+
+    shutil.copytree(downloaded, ds_root)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=42)
@@ -305,14 +337,20 @@ def main():
     dataset_root = project_root / "src" / "fer" / "dataset"
 
     sources_root = dataset_root / "sources"
-    ds_name = "ferplus"
+
+    # CHANGED: fer2013
+    ds_name = "fer2013"
     ds_root = sources_root / ds_name
 
-    out_raw = dataset_root / "standardized" / "ferplus" / "ferplus_raw"
+    # CHANGED: output path ferplus -> fer2013
+    out_raw = dataset_root / "standardized" / "fer2013" / "fer2013_raw"
     splits_root = dataset_root / "splits"
 
     safe_mkdir(out_raw)
     safe_mkdir(splits_root)
+
+    # NEW: download if missing
+    ensure_fer2013_downloaded(ds_root)
 
     if not ds_root.exists():
         raise SystemExit(f"[error] Dataset not found: {ds_root}")
@@ -334,7 +372,6 @@ def main():
     print(f"\n=== Dataset (only): {ds_name} ===")
     print(f"source: {ds_root}")
 
-    # Keep old FER2013 CSV handling intact (but now it will simply not trigger for ferplus)
     fer_csv = find_fer2013_csv(ds_root)
     if fer_csv is not None:
         info = process_fer2013_csv(
@@ -399,7 +436,8 @@ def main():
             }
             print(f"  -> layout: unsplit | written: {written}")
 
-    manifest_path = dataset_root / "standardized" / "ferplus" / "ferplus_raw" / "manifest.json"
+    # manifest path fer2013
+    manifest_path = dataset_root / "standardized" / "fer2013" / "fer2013_raw" / "manifest.json"
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2, ensure_ascii=False)
 

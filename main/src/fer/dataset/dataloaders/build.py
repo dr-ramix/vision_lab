@@ -139,7 +139,7 @@ def _build_mtcnn_cropped_norm(settings, images_root: Path) -> Tuple[Any, list[st
 
 @register_dataloader("fer", "fer2013", "FER2013")
 def _build_legacy(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
-    from fer.dataset.dataloaders.dataloader import (
+    from fer.dataset.dataloaders.dataloader_fer2013 import (
         build_dataloaders as build,
         CLASS_ORDER,
         CLASS_TO_IDX,

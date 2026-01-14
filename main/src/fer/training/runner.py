@@ -350,6 +350,8 @@ def _load_train_stats_for_previews(images_root: Path) -> Tuple[Optional[List[flo
     #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
     #HIST-EQ:
     #images_root / "images_mtcnn_cropped_norm" / "dataset_stats_train.json"
+    #FER2013
+    #images_root / "fer2013" / "fer2013_mtcnn_cropped_norm" / "dataset_stats_train.json"
     candidates = [
         images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json",
     ]

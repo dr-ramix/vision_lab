@@ -54,6 +54,8 @@ def _load_dataset_stats(images_root: Path) -> Dict[str, Any] | None:
     #images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
     #HIST-EQ:
     #images_root / "images_mtcnn_cropped_norm" / "dataset_stats_train.json"
+    #FER2013
+    #images_root / "fer2013" / "fer2013_mtcnn_cropped_norm" / "dataset_stats_train.json"
     candidates = [
         images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
     ]
