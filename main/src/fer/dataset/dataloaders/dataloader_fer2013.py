@@ -56,36 +56,35 @@ def _read_stats(stats_json: Path) -> Tuple[List[float], List[float], Tuple[int, 
 # ============================================================
 def _resolve_mtcnn_cropped_norm_paths(standardized_root: Path) -> Tuple[Path, Path]:
     """
-    User contract:
-      images_root passed in from registry/settings is:
-        .../main/src/fer/dataset/standardized
+    images_root is usually:
+      .../main/src/fer/dataset/standardized
 
-    We must find:
-      npy_root   = standardized_root/images_mtcnn_cropped_norm/npy
-      stats_json = standardized_root/images_mtcnn_cropped_norm/dataset_stats_train.json
+    We want:
+      npy_root   = .../standardized/fer2013/fer2013_mtcnn_cropped_norm/npy
+      stats_json = .../standardized/fer2013/fer2013_mtcnn_cropped_norm/dataset_stats_train.json
 
-    Also supports the case where someone accidentally passes already the npy_root
-    or already the images_mtcnn_cropped_norm root.
+    Also supports if caller passes already ".../fer2013_mtcnn_cropped_norm" or ".../npy".
     """
     standardized_root = Path(standardized_root)
 
-    # case A: caller already passes ".../images_mtcnn_cropped_norm/npy"
+    # case A: caller already passes ".../fer2013_mtcnn_cropped_norm/npy"
     if standardized_root.name == "npy" and standardized_root.parent.name == "fer2013_mtcnn_cropped_norm":
+        root = standardized_root.parent
         npy_root = standardized_root
-        stats_json = standardized_root.parent / "dataset_stats_train.json"
+        stats_json = root / "dataset_stats_train.json"
         return npy_root, stats_json
 
-    # case B: caller passes ".../images_mtcnn_cropped_norm"
+    # case B: caller passes ".../fer2013_mtcnn_cropped_norm"
     if standardized_root.name == "fer2013_mtcnn_cropped_norm":
         npy_root = standardized_root / "npy"
         stats_json = standardized_root / "dataset_stats_train.json"
         return npy_root, stats_json
 
     # case C: caller passes ".../standardized"
-    npy_root = standardized_root / "fer2013" / "fer2013_mtcnn_cropped_norm" / "npy"
-    stats_json = standardized_root / "fer2013_mtcnn_cropped_norm" / "dataset_stats_train.json"
+    fer2013_root = standardized_root / "fer2013" / "fer2013_mtcnn_cropped_norm"
+    npy_root = fer2013_root / "npy"
+    stats_json = fer2013_root / "dataset_stats_train.json"
     return npy_root, stats_json
-
 
 # ============================================================
 # Dataset (same logic as mixed/grey)
