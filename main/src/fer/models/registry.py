@@ -22,6 +22,7 @@ from fer.models.mobilenetv3 import (
 from fer.models.emocatnets_v2 import emocatnets_v2_fer
 from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
+from fer.models.efficientnetv2 import EfficientNetV2
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -488,3 +489,40 @@ register_model(
         in_channels=in_channels,
     ),
 )
+
+register_model(
+    "efficientnetv2-s",
+    lambda num_classes, in_channels=3, transfer=False, **_: EfficientNetV2(
+        model_name="efficientnetv2-s",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "efficientnetv2-b",
+    lambda num_classes, in_channels=3, transfer=False, **_: EfficientNetV2(
+        model_name="efficientnetv2-b",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "efficientnetv2-l",
+    lambda num_classes, in_channels=3, transfer=False, **_: EfficientNetV2(
+        model_name="efficientnetv2-l",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "efficientnetv2-xl",
+    lambda num_classes, in_channels=3, transfer=False, **_: EfficientNetV2(
+        model_name="efficientnetv2-xl",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
