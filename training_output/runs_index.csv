@@ -137,3 +137,12 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-13_14-08-23__resnet101__user-bargozideh__e30877,resnet101,accuracy,0.8031496062992126,0.7352078891257996,bargozideh,2026-01-14T05:17:42
 2026-01-13_14-11-28__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.6843605756177029,0.6183368869936035,bargozideh,2026-01-14T07:33:01
 2026-01-13_16-46-51__resnet101__user-bargozideh__e30877,resnet101,accuracy,0.7952755905511811,0.7394722814498934,bargozideh,2026-01-14T09:58:43
+2026-01-14_13-56-20__mobilenetv3_base__user-bargozideh__e30877,mobilenetv3_base,accuracy,0.7120553896280206,0.6675772921108742,bargozideh,2026-01-14T17:36:47
+2026-01-14_13-50-59__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.70784686396959,0.6481876332622601,bargozideh,2026-01-14T22:03:51
+2026-01-14_16-28-45__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.8869134897360704,0.7545159796201946,bargozideh,2026-01-14T22:46:49
+2026-01-14_13-51-42__emocatnetsv2_small__user-bargozideh__e30877,emocatnetsv2_small,accuracy,0.7759978278577246,0.7338086353944563,bargozideh,2026-01-15T01:54:30
+2026-01-14_13-55-22__emocatnetsv2_tiny__user-bargozideh__e30877,emocatnetsv2_tiny,accuracy,0.7728753733369536,0.728344882729211,bargozideh,2026-01-15T05:12:49
+2026-01-14_13-52-46__convnextv2_tiny__user-bargozideh__e30877,convnextv2_tiny,accuracy,0.7804778713005702,0.7258795309168443,bargozideh,2026-01-15T09:04:00
+2026-01-14_13-54-43__emocatnetsv2_base__user-bargozideh__e30877,emocatnetsv2_base,accuracy,0.7818354602226446,0.7321428571428571,bargozideh,2026-01-15T10:32:04
+2026-01-14_16-24-04__convnextv2_base__user-bargozideh__e30877,convnextv2_base,accuracy,0.7747759978278578,0.7212819829424307,bargozideh,2026-01-16T15:45:03
+2026-01-18_04-42-00__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.7848221558512083,0.7259461620469083,bargozideh,2026-01-18T09:34:09

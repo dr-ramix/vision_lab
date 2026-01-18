@@ -58,6 +58,14 @@ def build_train_augmentations() -> transforms.Compose:
     return transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
 
+        transforms.RandomApply( 
+            [transforms.RandomAffine( 
+                degrees=15, 
+                translate=(0.02, 0.02), 
+                fill=0, )], 
+                p=0.35, 
+        ),
+
         transforms.RandomApply(
             [transforms.GaussianBlur(kernel_size=3, sigma=(1.0, 2.0))],
             p=0.20,
