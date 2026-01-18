@@ -502,7 +502,7 @@ register_model(
 register_model(
     "efficientnetv2-b",
     lambda num_classes, in_channels=3, transfer=False, **_: EfficientNetV2(
-        model_name="efficientnetv2-b",
+        model_name="efficientnetv2-m",
         num_classes=num_classes,
         in_channels=in_channels,
     ),
