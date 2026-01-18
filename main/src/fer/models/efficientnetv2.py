@@ -4,8 +4,6 @@ from collections import OrderedDict
 import torch
 from torch import nn
 
-from efficientnetv2 import get_efficientnet_v2_structure
-
 MODEL_CONFIGS = {
     "efficientnetv2-s": {
         "structure": "efficientnet_v2_s",
@@ -32,6 +30,53 @@ MODEL_CONFIGS = {
         "stochastic_depth": 0.5,
     },
 }
+
+def get_efficientnet_v2_structure(name):
+    if name == "efficientnet_v2_s":
+        return [
+            (1, 3, 1, 24, 24, 2, False, True),
+            (4, 3, 2, 24, 48, 4, False, True),
+            (4, 3, 2, 48, 64, 4, False, True),
+            (4, 3, 2, 64, 128, 6, True, False),
+            (6, 3, 1, 128, 160, 9, True, False),
+            (6, 3, 2, 160, 256, 15, True, False),
+        ]
+
+    elif name == "efficientnet_v2_m":
+        return [
+            (1, 3, 1, 24, 24, 3, False, True),
+            (4, 3, 2, 24, 48, 5, False, True),
+            (4, 3, 2, 48, 80, 5, False, True),
+            (4, 3, 2, 80, 160, 7, True, False),
+            (6, 3, 1, 160, 176, 14, True, False),
+            (6, 3, 2, 176, 304, 18, True, False),
+            (6, 3, 1, 304, 512, 5, True, False),
+        ]
+
+    elif name == "efficientnet_v2_l":
+        return [
+            (1, 3, 1, 32, 32, 4, False, True),
+            (4, 3, 2, 32, 64, 7, False, True),
+            (4, 3, 2, 64, 96, 7, False, True),
+            (4, 3, 2, 96, 192, 10, True, False),
+            (6, 3, 1, 192, 224, 19, True, False),
+            (6, 3, 2, 224, 384, 25, True, False),
+            (6, 3, 1, 384, 640, 7, True, False),
+        ]
+    
+    elif name == "efficientnet_v2_xl":
+        return [
+            (1, 3, 1, 32, 32, 4, False, True),
+            (4, 3, 2, 32, 64, 8, False, True),
+            (4, 3, 2, 64, 96, 8, False, True),
+            (4, 3, 2, 96, 192, 16, True, False),
+            (6, 3, 1, 192, 256, 24, True, False),
+            (6, 3, 2, 256, 512, 32, True, False),
+            (6, 3, 1, 512, 640, 8, True, False),
+        ]
+    
+    else:
+        raise ValueError(f"Structure {name} not implemented")
 
 class ConvBNAct(nn.Sequential):
     def __init__(self, in_channel, out_channel, kernel_size, stride, groups, norm_layer, act, conv_layer=nn.Conv2d):
@@ -87,7 +132,7 @@ class MBConvConfig:
 
     @staticmethod
     def adjust_channels(channel, factor, divisible=8):
-        new_channel = channel * factor
+        new_channel = int(channel * factor)
         divisible_channel = max(divisible, (int(new_channel + divisible / 2) // divisible) * divisible)
         divisible_channel += divisible if divisible_channel < 0.9 * new_channel else 0
         return divisible_channel
@@ -100,7 +145,7 @@ class MBConv(nn.Module):
         block = []
         if c.fused:
             if c.expand_ratio == 1:
-                block.append(('fused', ConvBNAct(c.in_ch, inter_channel, c.kernel, c.stride, 1, c.norm_layer, c.act)))
+                block.append(('fused',ConvBNAct(c.in_ch, c.out_ch, c.kernel, c.stride, 1, c.norm_layer, c.act)))
             else:
                 block.append(('fused', ConvBNAct(c.in_ch, inter_channel, c.kernel, c.stride, 1, c.norm_layer, c.act)))
                 block.append(('fused_point_wise', ConvBNAct(inter_channel, c.out_ch, 1, 1, 1, c.norm_layer, nn.Identity)))
