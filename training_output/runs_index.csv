@@ -150,3 +150,7 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-18_15-19-46__efficientnetv2-s__user-sallauka__e30877,efficientnetv2-s,accuracy,0.765329707681849,0.7370069296375267,sallauka,2026-01-18T17:57:39
 2026-01-18_15-27-34__coatnet_tiny__user-sallauka__e30877,coatnet_tiny,accuracy,0.7059143439836846,0.673840618336887,sallauka,2026-01-18T17:58:07
 2026-01-18_15-28-21__coatnetv2_tiny__user-sallauka__e30877,coatnetv2_tiny,accuracy,0.7628823929299796,0.7298107675906184,sallauka,2026-01-18T18:33:40
+2026-01-18_15-29-05__coatnetv2_small__user-sallauka__e30877,coatnetv2_small,accuracy,0.7691366417403127,0.7433368869936035,sallauka,2026-01-18T19:19:59
+2026-01-18_15-28-01__coatnet_small__user-sallauka__e30877,coatnet_small,accuracy,0.7151597552685248,0.6863006396588486,sallauka,2026-01-18T20:48:07
+2026-01-18_15-33-34__coatnetv2_base__user-sallauka__e30877,coatnetv2_base,accuracy,0.7778382053025154,0.7439365671641791,sallauka,2026-01-18T20:55:59
+2026-01-18_18-33-56__efficientnetv2-b__user-sallauka__e30877,efficientnetv2-b,accuracy,0.7657375934738273,0.7364072494669509,sallauka,2026-01-19T00:48:05
