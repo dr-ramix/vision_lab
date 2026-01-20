@@ -50,7 +50,9 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from fer.pre_processing.face_detection.mtcnn import MTCNNFaceCropper  # :contentReference[oaicite:1]{index=1}
-
+from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
+from pytorch_grad_cam.utils.image import scale_cam_image
+from fer.explainability.gradcam_custom import GradCAM
 
 # --------------------------------------------------
 # Fixed class order (must match your training)
@@ -154,69 +156,13 @@ def normalize_to_tensor(rgb01: np.ndarray) -> torch.Tensor:
 # ============================
 # Saliency (Grad-CAM or fallback)
 # ============================
-def find_last_conv_name(model: nn.Module) -> Optional[str]:
-    last = None
-    for name, m in model.named_modules():
+
+def find_last_conv_layer(model: nn.Module) -> Optional[nn.Module]:
+    last_layer = None
+    for m in model.modules():
         if isinstance(m, nn.Conv2d):
-            last = name
-    return last
-
-
-def get_module_by_name(model: nn.Module, name: str) -> nn.Module:
-    cur: nn.Module = model
-    for part in name.split("."):
-        if part.isdigit():
-            cur = cur[int(part)]  # type: ignore[index]
-        else:
-            cur = getattr(cur, part)
-    return cur
-
-
-@dataclass
-class CamCache:
-    acts: Optional[torch.Tensor] = None
-    grads: Optional[torch.Tensor] = None
-
-
-def gradcam_heatmap(model: nn.Module, x: torch.Tensor, class_idx: int, target_layer_name: str) -> np.ndarray:
-    """
-    x: 1x3xHxW (requires_grad True recommended)
-    returns: hxw heatmap float [0,1] (layer resolution)
-    """
-    cache = CamCache()
-    layer = get_module_by_name(model, target_layer_name)
-
-    def fwd_hook(_m, _inp, out):
-        cache.acts = out
-
-    def bwd_hook(_m, _gin, gout):
-        cache.grads = gout[0]
-
-    h1 = layer.register_forward_hook(fwd_hook)
-    h2 = layer.register_full_backward_hook(bwd_hook)
-    try:
-        logits = model(x)  # 1xC
-        score = logits[0, class_idx]
-        model.zero_grad(set_to_none=True)
-        score.backward()
-
-        if cache.acts is None or cache.grads is None:
-            raise RuntimeError("Grad-CAM hooks failed to capture activations/gradients.")
-
-        A = cache.acts[0]   # Kxhxw
-        dA = cache.grads[0] # Kxhxw
-
-        w = dA.mean(dim=(1, 2))                 # K
-        cam = (w[:, None, None] * A).sum(dim=0) # hxw
-        cam = torch.relu(cam)
-
-        cam = cam - cam.min()
-        cam = cam / cam.max().clamp_min(1e-8)
-        return cam.detach().cpu().numpy().astype(np.float32)
-    finally:
-        h1.remove()
-        h2.remove()
-
+            last_layer = m
+    return last_layer
 
 def input_grad_saliency(model: nn.Module, x: torch.Tensor, class_idx: int) -> np.ndarray:
     """
@@ -306,14 +252,20 @@ def main() -> int:
 
     # Build + (optionally) load weights
     model = build_model(args.model, num_classes=len(CLASS_ORDER), model_kwargs=model_kwargs)
+    model.eval()
     model, loaded = load_weights_if_available(model, weights_path, device)
+    target_conv = find_last_conv_layer(model)
 
-    # CAM target layer (if possible)
-    cam_layer = find_last_conv_name(model)
-    if cam_layer is None:
-        print("[warning] no Conv2d layer found -> using input-gradient saliency fallback")
+    if target_conv is None:
+        print("[warning] No Conv2d layer found -> using input-gradient saliency")
+        cam = None
     else:
-        print(f"[info] Grad-CAM layer: {cam_layer}")
+        cam = GradCAM(
+            model=model,
+            target_layers=[target_conv],
+            reshape_transform=None
+        )
+        print(f"[info] Using custom GradCAM on layer: {target_conv}")
 
     cap = cv2.VideoCapture(str(video_in))
     if not cap.isOpened():
@@ -368,13 +320,20 @@ def main() -> int:
             pred_conf = float(probs[pred_idx].item())
 
             # ---- saliency
-            if cam_layer is not None:
-                x_req = x.detach().clone().requires_grad_(True)
-                cam = gradcam_heatmap(model, x_req, pred_idx, cam_layer)  # layer res
-                heat64 = cv2.resize(cam, TARGET_SIZE, interpolation=cv2.INTER_LINEAR).astype(np.float32)
+            if cam is not None:
+                targets = [ClassifierOutputTarget(pred_idx)]
+
+                cam_map = cam(
+                    input_tensor=x,
+                    targets=targets
+                )[0]  # shape: HxW (normalized)
+
+                cam_map = scale_cam_image(cam_map)
+                heat64 = cv2.resize(cam_map, TARGET_SIZE, interpolation=cv2.INTER_LINEAR)
+
                 saliency_kind = "Grad-CAM"
             else:
-                sal = input_grad_saliency(model, x, pred_idx)  # 64x64
+                sal = input_grad_saliency(model, x, pred_idx)  
                 heat64 = sal.astype(np.float32)
                 saliency_kind = "Input-Grad"
 
