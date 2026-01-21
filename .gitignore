@@ -52,6 +52,9 @@ main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/*
 !main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/.gitkeep
 !main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/dataset_stats_train.json
 
+testing/ckplus
+testing/results_ckplus.csv
+
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)
 runs/
