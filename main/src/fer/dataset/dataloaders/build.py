@@ -153,6 +153,43 @@ def _build_legacy(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str
     class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
     return dls, list(CLASS_ORDER), dict(class_to_idx)
 
+@register_dataloader(
+    "fer2013_no_int",
+    "fer2013_no_intensity",
+    "fer2013_mtcnn",
+    "fer2013_cropped",
+    "npy_fer2013_no_int",
+)
+def _build_fer2013_no_intensity(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
+    """
+    FER2013 MTCNN-cropped NPY loader (no intensity normalization)
+
+    Uses:
+      standardized/fer2013/fer2013_mtcnn_cropped/npy
+      standardized/fer2013/fer2013_mtcnn_cropped/dataset_stats_train.json
+    """
+
+    from fer.dataset.dataloaders.dataloder_fer2013_no_intensity import (
+        build_dataloaders as build,
+        CLASS_ORDER,
+        CLASS_TO_IDX,
+    )
+
+    stats_json = getattr(settings, "stats_json", "")
+    stats_path = Path(stats_json) if stats_json else None
+
+    dls = build(
+        images_root=images_root,  # expected: .../standardized
+        batch_size=int(getattr(settings, "bs", 64)),
+        num_workers=int(getattr(settings, "num_workers", 4)),
+        pin_memory=bool(getattr(settings, "pin_memory", True)),
+        stats_json=stats_path,
+    )
+
+    class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
+    return dls, list(CLASS_ORDER), dict(class_to_idx)
+
+
 
 # ============================================================
 # Public API

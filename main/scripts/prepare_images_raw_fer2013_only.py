@@ -344,6 +344,9 @@ def main():
 
     # CHANGED: output path ferplus -> fer2013
     out_raw = dataset_root / "standardized" / "fer2013" / "fer2013_raw"
+    if out_raw.exists():
+        shutil.rmtree(out_raw)
+    safe_mkdir(out_raw)
     splits_root = dataset_root / "splits"
 
     safe_mkdir(out_raw)
