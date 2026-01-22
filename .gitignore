@@ -99,6 +99,7 @@ out/linecounter.json
 demo/kaggle_videos
 demo/download_kaggle_videos.py
 demo/kaggle_video_out/
+demo/src/*
 
 # classification model
 classification_model/images/
