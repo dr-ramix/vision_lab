@@ -23,6 +23,7 @@ from fer.models.emocatnets_v2 import emocatnets_v2_fer
 from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
+from fer.models.emocatnets_v3 import emocatnets_v3_fer
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -526,3 +527,44 @@ register_model(
     ),
 )
 
+
+
+# ------------------------------------------------------------
+# EmoCatNets-v3 (SLOWER downsampling: 64 -> 64 -> 32 -> 16, T@16x16, proj_16)
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv3_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv3_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv3_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv3_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
