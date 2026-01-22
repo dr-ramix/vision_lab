@@ -41,6 +41,9 @@ main/src/fer/dataset/standardized/fer2013/fer2013_raw/*
 main/src/fer/dataset/standardized/images_mtcnn_cropped/png/*
 !main/src/fer/dataset/standardized/images_mtcnn_cropped/png/.gitkeep
 
+main/src/fer/dataset/standardized/mtcnn_cropped_int_norm/*
+!main/src/fer/dataset/standardized/mtcnn_cropped_int_norm/.gitkeep
+
 main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/*
 !main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/.gitkeep
 !main/src/fer/dataset/standardized/images_mtcnn_cropped/npy/.dataset_stats_train.json

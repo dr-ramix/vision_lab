@@ -189,6 +189,41 @@ def _build_fer2013_no_intensity(settings, images_root: Path) -> Tuple[Any, list[
     class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
     return dls, list(CLASS_ORDER), dict(class_to_idx)
 
+@register_dataloader(
+    "mtcnn_int_norm",
+    "mtcnn_intensity_norm",
+    "mtcnn_cropped_int_norm",
+    "int_norm",
+    "intensity_norm",
+    "npy_mtcnn_int_norm",
+)
+def _build_mtcnn_cropped_int_norm(settings, images_root: Path) -> Tuple[Any, list[str], Dict[str, int]]:
+    """
+    MTCNN-cropped + intensity-normalized NPY loader
+
+    Uses:
+      standardized/mtcnn_cropped_int_norm/npy
+      standardized/mtcnn_cropped_int_norm/dataset_stats_train.json
+    """
+    from fer.dataset.dataloaders.dataloader_int_norm import (
+        build_dataloaders as build,
+        CLASS_ORDER,
+        CLASS_TO_IDX,
+    )
+
+    stats_json = getattr(settings, "stats_json", "")
+    stats_path = Path(stats_json) if stats_json else None
+
+    dls = build(
+        images_root=images_root,  # expected: .../standardized
+        batch_size=int(getattr(settings, "bs", 64)),
+        num_workers=int(getattr(settings, "num_workers", 4)),
+        pin_memory=bool(getattr(settings, "pin_memory", True)),
+        stats_json=stats_path,
+    )
+
+    class_to_idx = getattr(dls, "class_to_idx", None) or dict(CLASS_TO_IDX)
+    return dls, list(CLASS_ORDER), dict(class_to_idx)
 
 
 # ============================================================
