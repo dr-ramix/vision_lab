@@ -6,8 +6,11 @@ __pycache__/
 venv/
 .env
 
-jobs/
 training_output/runs/
+
+jobs/*
+!jobs/.gitkeep
+
 
 # Raw data (never share)
 data/
