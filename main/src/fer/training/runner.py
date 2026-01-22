@@ -357,7 +357,7 @@ def _load_train_stats_for_previews(images_root: Path) -> Tuple[Optional[List[flo
     #INT NORM
     #images_root / mtcnn_cropped_int_norm / "dataset_stats_train.json"
     candidates = [
-        images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json",
+       images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
     ]
 
     seen: set[str] = set()
