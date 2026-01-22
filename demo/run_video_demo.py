@@ -52,7 +52,7 @@ if str(SRC_ROOT) not in sys.path:
 from fer.pre_processing.face_detection.mtcnn import MTCNNFaceCropper  # :contentReference[oaicite:1]{index=1}
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 from pytorch_grad_cam.utils.image import scale_cam_image
-from fer.explainability.gradcam_custom import GradCAM
+from fer.xai.grad_cam import GradCAM
 
 # --------------------------------------------------
 # Fixed class order (must match your training)
