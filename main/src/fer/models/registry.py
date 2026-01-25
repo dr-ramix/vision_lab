@@ -24,6 +24,7 @@ from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
 from fer.models.emocatnets_v3 import emocatnets_v3_fer
+from fer.models.emocatnetsv2fine import emocatnetsv2fine_fer
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -566,5 +567,46 @@ register_model(
         size="large",
         num_classes=num_classes,
         in_channels=in_channels,
+    ),
+)
+
+
+register_model(
+    "emocatnetsv2fine_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,   # if True: use standard ConvNeXt pretrained weights as init
+    ),
+)
+
+register_model(
+    "emocatnetsv2fine_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsv2fine_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsv2fine_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
     ),
 )

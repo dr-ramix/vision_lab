@@ -191,3 +191,7 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-24_16-21-54__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.7806838305407983,0.7393390191897654,hosseinis,2026-01-25T00:51:03
 2026-01-24_16-21-57__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.769922353902738,0.7386727078891258,hosseinis,2026-01-25T03:42:49
 2026-01-25_13-04-00__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.24179267129818827,0.20095948827292112,hosseinis,2026-01-25T13:12:51
+2026-01-25_13-44-28__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.777142078735867,0.7290111940298507,hosseinis,2026-01-25T18:06:23
+2026-01-25_13-28-29__coatnetv2_tiny__user-hosseinis__e30877,coatnetv2_tiny,accuracy,0.7721018934750034,0.7244136460554371,hosseinis,2026-01-25T20:39:47
+2026-01-25_13-28-40__coatnetv2_small__user-hosseinis__e30877,coatnetv2_small,accuracy,0.7733278844844027,0.7264792110874201,hosseinis,2026-01-25T23:10:41
+2026-01-25_13-28-30__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7118921127911728,0.6788379530916845,hosseinis,2026-01-25T23:35:54
