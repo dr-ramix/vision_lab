@@ -24,7 +24,9 @@ from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
 from fer.models.emocatnets_v3 import emocatnets_v3_fer
-from fer.models.emocatnetsv2fine import emocatnetsv2fine_fer
+from fer.models.emocatnets_v2_fine import emocatnetsv2fine_fer
+from fer.models.emocatnets_v3_fine import emocatnetsv3fine_fer
+from fer.models.emocatnets_fine import emocatnetsfine_fer
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -571,13 +573,70 @@ register_model(
 )
 
 
+# ------------------------------------------------------------
+# EmoCatNets-v2 Fine (ConvNeXt-initialized backbone)
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsfine_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,   # True -> load ConvNeXt weights into stage1-3 + downsample_layer_1-3
+    ),
+)
+
+register_model(
+    "emocatnetsfine_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsfine_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsfine_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsfine_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+# ------------------------------------------------------------
+# EmoCatNets-v2 Fine (ConvNeXt-initialized backbone)
+# ------------------------------------------------------------
 register_model(
     "emocatnetsv2fine_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
         size="tiny",
         num_classes=num_classes,
         in_channels=in_channels,
-        transfer=transfer,   # if True: use standard ConvNeXt pretrained weights as init
+        transfer=transfer,   # True -> load timm convnext pretrained into stage1-3 + down1-3
     ),
 )
 
@@ -604,6 +663,51 @@ register_model(
 register_model(
     "emocatnetsv2fine_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2fine_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+
+# ------------------------------------------------------------
+# EmoCatNets-v3 Fine (ConvNeXt-initialized backbone)
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv3fine_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,   # True -> load convnext weights into stage1-3 + down1-2
+    ),
+)
+
+register_model(
+    "emocatnetsv3fine_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsv3fine_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "emocatnetsv3fine_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
         size="large",
         num_classes=num_classes,
         in_channels=in_channels,
