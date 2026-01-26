@@ -574,7 +574,7 @@ register_model(
 
 
 # ------------------------------------------------------------
-# EmoCatNets-v2 Fine (ConvNeXt-initialized backbone)
+# EmoCatNets-v1 Fine (ConvNeXt-initialized backbone)
 # ------------------------------------------------------------
 
 register_model(
