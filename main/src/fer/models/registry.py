@@ -27,6 +27,9 @@ from fer.models.emocatnets_v3 import emocatnets_v3_fer
 from fer.models.emocatnets_v2_fine import emocatnetsv2fine_fer
 from fer.models.emocatnets_v3_fine import emocatnetsv3fine_fer
 from fer.models.emocatnets_fine import emocatnetsfine_fer
+from fer.models.cnn_resnet50_fine import resnet50fine_fer
+from fer.models.cnn_resenet101_fine import resnet101fine_fer
+from fer.models.convnext_fer_fine import convnextfer_v2_fine
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -709,6 +712,33 @@ register_model(
     "emocatnetsv3fine_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
         size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "resnet50_fine",
+    lambda num_classes, in_channels=3, transfer=False, **_:resnet50fine_fer(
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "resnet101_fine",
+    lambda num_classes, in_channels=3, transfer=False, **_: resnet101fine_fer(
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "convnext_fer_fine",
+    lambda num_classes, in_channels=3, transfer=False, **_: convnextfer_v2_fine(
         num_classes=num_classes,
         in_channels=in_channels,
         transfer=transfer,
