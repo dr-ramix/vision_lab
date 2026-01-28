@@ -11,6 +11,15 @@ Changes vs your v1:
   - Conv Positional Encoding (depthwise 3x3 on token grid)
 - Multi-scale head: fuse GAP(16x16) + GAP(8x8)
 
+Updated regularization defaults for:
+- from scratch, ~90k images, 64x64
+- using mixup + cutmix
+
+Key changes:
+- drop_path_rate: tiny 0.15, small 0.20, base 0.25 (large kept 0.30)
+- transformer attn_dropout: 0.05 (64 tokens -> safe to add a little)
+- transformer proj_dropout: 0.10
+
 This file is self-contained. Requires:
   pip install timm torchvision
 """
@@ -195,7 +204,6 @@ class RelativePositionBias(nn.Module):
         self.heads = heads
         self.height = height
         self.width = width
-        T = height * width
 
         # Table size: (2H-1)*(2W-1), each entry has 'heads' biases
         self.relative_bias_table = nn.Parameter(
@@ -215,7 +223,6 @@ class RelativePositionBias(nn.Module):
         relative_index = relative_coords[0] + relative_coords[1]    # (T, T)
 
         self.register_buffer("relative_position_index", relative_index, persistent=False)
-
         nn.init.trunc_normal_(self.relative_bias_table, std=0.02)
 
     def forward(self) -> torch.Tensor:
@@ -351,8 +358,6 @@ class RelativeTransformerBlockV2(nn.Module):
 class ResidualStem(nn.Module):
     """
     Residual stem that keeps 64->64 (no downsampling).
-    Uses your original "2x 3x3 conv + GELU + LN" as the main path,
-    plus a skip projection when needed.
 
     Main:
       conv3x3 -> GELU -> conv3x3 -> LN(ch_first)
@@ -401,11 +406,40 @@ class EmoCatNetV2Config:
 
 
 EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
-    # Note: attention at 8x8 is heavier, so d3 is kept smaller than your v1 ladder by default
-    "tiny":  EmoCatNetV2Config(depths=(2, 2, 6, 2), dims=( 96, 192, 384,  512), drop_path_rate=0.12, num_heads=8),
-    "small": EmoCatNetV2Config(depths=(3, 3, 9, 2), dims=( 96, 192, 384,  640), drop_path_rate=0.15, num_heads=8),
-    "base":  EmoCatNetV2Config(depths=(3, 3, 12, 3), dims=(128, 256, 512,  768), drop_path_rate=0.20, num_heads=8),
-    "large": EmoCatNetV2Config(depths=(3, 3, 18, 3), dims=(192, 384, 768, 1024), drop_path_rate=0.25, num_heads=8),
+    # Updated defaults (from-scratch, 90k, mixup+cutmix)
+    # Tokens at 8x8 => 64 tokens, so mild attn_dropout is safe/useful.
+    "tiny":  EmoCatNetV2Config(
+        depths=(2, 2,  6, 2),
+        dims=( 96, 192, 384, 512),
+        drop_path_rate=0.15,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
+    "small": EmoCatNetV2Config(
+        depths=(3, 3,  9, 2),
+        dims=( 96, 192, 384, 640),
+        drop_path_rate=0.20,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
+    "base":  EmoCatNetV2Config(
+        depths=(3, 3, 12, 3),
+        dims=(128, 256, 512, 768),
+        drop_path_rate=0.25,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
+    "large": EmoCatNetV2Config(
+        depths=(3, 3, 18, 3),
+        dims=(192, 384, 768, 1024),
+        drop_path_rate=0.30,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
 }
 
 

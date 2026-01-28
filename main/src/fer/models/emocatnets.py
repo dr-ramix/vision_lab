@@ -20,6 +20,15 @@ Shapes (H=W=64):
   down3 (k2,s2):      4x4
   stage4 (T, rel):    4x4
   GAP -> LN -> head:  logits (B, num_classes)
+
+Updated regularization defaults for:
+- from scratch, ~90k images, 64x64
+- using mixup + cutmix
+
+Key changes:
+- drop_path_rate: tiny 0.15, small 0.20, base 0.25
+- transformer attn_dropout: 0.0 (tiny token count: 16)
+- transformer proj_dropout: 0.10
 """
 
 import math
@@ -303,12 +312,49 @@ class EmoCatNetConfig:
 
 
 EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
-    # Keep ConvNeXt-like dims ladder; this is compatible with your ConvNeXtFER sizing
-    "tiny":  EmoCatNetConfig(depths=(3, 3,  9, 2), dims=( 96, 192,  384,  768), drop_path_rate=0.10, num_heads=8),
-    "small": EmoCatNetConfig(depths=(3, 3, 27, 2), dims=( 96, 192,  384,  768), drop_path_rate=0.15, num_heads=8),
-    "base":  EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(128, 256,  512, 1024), drop_path_rate=0.20, num_heads=8),
-    "large": EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(192, 384,  768, 1536), drop_path_rate=0.30, num_heads=8),
-    "xlarge": EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048), drop_path_rate=0.40, num_heads=8),
+    # Updated defaults (from-scratch, 90k, mixup+cutmix)
+    "tiny":  EmoCatNetConfig(
+        depths=(3, 3,  9, 2),
+        dims=( 96, 192,  384,  768),
+        drop_path_rate=0.15,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.10,
+    ),
+    "small": EmoCatNetConfig(
+        depths=(3, 3, 27, 2),
+        dims=( 96, 192,  384,  768),
+        drop_path_rate=0.20,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.10,
+    ),
+    "base":  EmoCatNetConfig(
+        depths=(3, 3, 27, 2),
+        dims=(128, 256,  512, 1024),
+        drop_path_rate=0.25,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.10,
+    ),
+
+    # Keep these unless you plan to train them too
+    "large": EmoCatNetConfig(
+        depths=(3, 3, 27, 2),
+        dims=(192, 384,  768, 1536),
+        drop_path_rate=0.30,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.10,
+    ),
+    "xlarge": EmoCatNetConfig(
+        depths=(3, 3, 27, 2),
+        dims=(256, 512, 1024, 2048),
+        drop_path_rate=0.40,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.10,
+    ),
 }
 
 
