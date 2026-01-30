@@ -25,7 +25,7 @@ class TrainSettings:
     # ==================================================
     #MAIN/BUNT: "main", GREY : "grey", HIST-EQ: "histeq", FER2013: "fer2013", FER2013 No Int-Norm: "fer2013_no_int" 
     #INT NORM: "int_norm"
-    dataloader: str = "main"                # main | legacy | ... (see fer.dataset.dataloaders.build)
+    dataloader: str = "grey"                # main | legacy | ... (see fer.dataset.dataloaders.build)
     in_channels: int = 3                    # model input channels
     image_size: int = 64                    # used for exports / dummy inputs
     num_workers: int = 4

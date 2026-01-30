@@ -61,7 +61,7 @@ def _load_dataset_stats(images_root: Path) -> Dict[str, Any] | None:
     #INT NORM
     #images_root / mtcnn_cropped_int_norm / "dataset_stats_train.json"
     candidates = [
-        images_root / "only_mtcnn_cropped" / "color_and_grey" / "dataset_stats_train.json"
+        images_root / "only_mtcnn_cropped" / "grey" / "dataset_stats_train.json"
     ]
     for p in candidates:
         if p.exists():
