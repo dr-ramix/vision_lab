@@ -1,30 +1,5 @@
 """
 EmoCatNets (64x64 FER)
-- STN at input (no downsampling, only warps)
-- ConvNeXt stem: non-overlapping conv (k=2, s=2) => 64 -> 32
-- Slow-ish downsampling: 32 -> 16 -> 8 -> 4
-- Stages: C - C - C - T
-  * C stages use ConvNextBlock
-  * T stage uses Relative Position Bias self-attention on 4x4 tokens (16 tokens)
-- SE after each stage
-
-Shapes (H=W=64):
-  x:                 64x64
-  STN:               64x64
-  stem (k2,s2):      32x32
-  stage1 (C):        32x32
-  down1 (k2,s2):     16x16
-  stage2 (C):        16x16
-  down2 (k2,s2):      8x8
-  stage3 (C):         8x8
-  down3 (k2,s2):      4x4
-  stage4 (T, rel):    4x4
-  GAP -> LN -> head:  logits (B, num_classes)
-
-Updated regularization defaults for:
-- from scratch, ~90k images, 64x64
-- using mixup + cutmix
-
 Key changes:
 - drop_path_rate: tiny 0.15, small 0.20, base 0.25
 - transformer attn_dropout: 0.0 (tiny token count: 16)
@@ -360,15 +335,15 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
 
 class EmoCatNets(nn.Module):
     """
-    EmoCatNets:
-      STN -> stem(k2,s2) -> stage1(C) -> down1 -> stage2(C) -> down2 -> stage3(C) -> down3 -> stage4(T, relative) -> head
+    EmoCatNets (new downsampling plan):
+      STN (no downsampling) -> stem (no downsampling) -> stage1(C) -> down1 -> stage2(C) -> down2 -> stage3(C) -> down3 -> stage4(T, relative) -> head
 
     For 64x64:
-      stem: 64->32
-      down1: 32->16
-      down2: 16->8
-      down3:  8->4
-      stage4 attention: fixed 4x4 tokens (16)
+      stem: 64->64
+      down1: 64->32
+      down2: 32->16
+      down3: 16->8
+      stage4 attention: fixed 8x8 tokens (64)
     """
     def __init__(
         self,
@@ -391,27 +366,28 @@ class EmoCatNets(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # STN
+        # STN (no downsampling, only warps)
         self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden)
 
-        # ConvNeXt non-overlapping stem: 64->32
+        # Stem (NO downsampling): 64 -> 64
+        # Keep it simple: conv + LN (channels_first)
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, d0, kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1),
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
         )
 
-        # Downsampling: 32->16->8->4 (ConvNeXt style)
+        # Downsampling: 64->32->16->8 (ConvNeXt style: LN + k2,s2 conv)
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),  # 64->32
         )
         self.downsample_layer_2 = nn.Sequential(
             LayerNorm(d1, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d1, d2, kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(d1, d2, kernel_size=2, stride=2, padding=0),  # 32->16
         )
         self.downsample_layer_3 = nn.Sequential(
             LayerNorm(d2, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),  # 16->8
         )
 
         # SE after each stage
@@ -425,35 +401,34 @@ class EmoCatNets(nn.Module):
         dp_rates: List[float] = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
 
-        # Stage 1 (C) @32x32
+        # Stage 1 (C) @64x64
         self.stage1 = nn.Sequential(*[
             ConvNextBlock(d0, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[0])
         ])
         cur += depths[0]
 
-        # Stage 2 (C) @16x16
+        # Stage 2 (C) @32x32
         self.stage2 = nn.Sequential(*[
             ConvNextBlock(d1, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[1])
         ])
         cur += depths[1]
 
-        # Stage 3 (C) @8x8
+        # Stage 3 (C) @16x16
         self.stage3 = nn.Sequential(*[
             ConvNextBlock(d2, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[2])
         ])
         cur += depths[2]
 
-        # Stage 4 (T, relative) @4x4 tokens
-        # Fixed (H,W) = (4,4) for 64 input with this downsampling plan.
+        # Stage 4 (T, relative) @8x8 tokens (64)
         self.stage4 = nn.Sequential(*[
             RelativeTransformerBlock(
                 dim=d3,
                 heads=num_heads,
-                height=4,
-                width=4,
+                height=8,
+                width=8,
                 mlp_ratio=4.0,
                 attn_dropout=attn_dropout,
                 proj_dropout=proj_dropout,
@@ -479,25 +454,25 @@ class EmoCatNets(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stn(x)              # (B, Cin, 64, 64)
 
-        x = self.stem(x)             # (B, d0, 32, 32)
+        x = self.stem(x)             # (B, d0, 64, 64)
         x = self.stage1(x)
         x = self.se1(x)
 
-        x = self.downsample_layer_1(x)  # (B, d1, 16, 16)
+        x = self.downsample_layer_1(x)  # (B, d1, 32, 32)
         x = self.stage2(x)
         x = self.se2(x)
 
-        x = self.downsample_layer_2(x)  # (B, d2, 8, 8)
+        x = self.downsample_layer_2(x)  # (B, d2, 16, 16)
         x = self.stage3(x)
         x = self.se3(x)
 
-        x = self.downsample_layer_3(x)  # (B, d3, 4, 4)
+        x = self.downsample_layer_3(x)  # (B, d3, 8, 8)
 
-        # Relative attention on tokens (B, T=16, C=d3)
+        # Relative attention on tokens (B, T=64, C=d3)
         b, c, h, w = x.shape
-        if h != 4 or w != 4:
-            raise ValueError(f"Expected 4x4 before stage4, got {h}x{w}. Check input size/downsampling.")
-        tokens = x.flatten(2).transpose(1, 2)   # (B, 16, d3)
+        if h != 8 or w != 8:
+            raise ValueError(f"Expected 8x8 before stage4, got {h}x{w}. Check input size/downsampling.")
+        tokens = x.flatten(2).transpose(1, 2)   # (B, 64, d3)
         tokens = self.stage4(tokens)
         x = tokens.transpose(1, 2).reshape(b, c, h, w)
         x = self.se4(x)
@@ -506,7 +481,6 @@ class EmoCatNets(nn.Module):
         feat = self.final_ln(feat)
         logits = self.head(feat)
         return logits
-
 
 def emocatnets_fer(
     size: str = "tiny",
