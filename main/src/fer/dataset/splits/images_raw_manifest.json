@@ -9,38 +9,7 @@
   "mode": "copy",
   "on_conflict": "skip",
   "datasets": {
-    "affectnet": {
-      "layout": "train_test_dirs(+optional_validation)",
-      "has_validation_dir": false,
-      "counts": {
-        "train": {
-          "anger": 1350,
-          "disgust": 1106,
-          "fear": 1361,
-          "happiness": 2106,
-          "sadness": 2782,
-          "surprise": 1907
-        },
-        "val": {
-          "anger": 150,
-          "disgust": 123,
-          "fear": 151,
-          "happiness": 234,
-          "sadness": 309,
-          "surprise": 212
-        },
-        "test": {
-          "anger": 1718,
-          "disgust": 1248,
-          "fear": 1664,
-          "happiness": 2704,
-          "sadness": 1584,
-          "surprise": 1920
-        }
-      },
-      "written": 22629
-    },
-    "raf-db": {
+    "rafdb": {
       "layout": "train_test_dirs(+optional_validation)",
       "has_validation_dir": false,
       "counts": {
@@ -64,43 +33,44 @@
           "anger": 162,
           "disgust": 160,
           "fear": 74,
-          "happiness": 1185,
+          "happiness": 1184,
           "sadness": 478,
           "surprise": 329
         }
       },
-      "written": 12135
+      "written": 12134
     },
     "ferplus": {
       "layout": "train_test_dirs(+optional_validation)",
       "has_validation_dir": true,
       "counts": {
         "train": {
-          "anger": 8000,
-          "disgust": 8000,
-          "fear": 8000,
-          "happiness": 8000,
-          "sadness": 8000,
-          "surprise": 8000
+          "anger": 3912,
+          "disgust": 287,
+          "fear": 2178,
+          "happiness": 7956,
+          "sadness": 6130,
+          "surprise": 3849
         },
         "val": {
-          "anger": 1000,
-          "disgust": 1000,
-          "fear": 1000,
-          "happiness": 1000,
-          "sadness": 1000,
-          "surprise": 1000
+          "anger": 476,
+          "disgust": 44,
+          "fear": 289,
+          "happiness": 964,
+          "sadness": 780,
+          "surprise": 492
         },
         "test": {
-          "anger": 322,
-          "disgust": 21,
-          "fear": 98,
-          "happiness": 929,
-          "sadness": 449,
-          "surprise": 450
+          "anger": 493,
+          "disgust": 32,
+          "fear": 286,
+          "happiness": 970,
+          "sadness": 775,
+          "surprise": 476
         }
       },
-      "written": 56269
+      "written": 30389
     }
-  }
+  },
+  "deterministic_val": "content_md5_sorted_per_class"
 }
