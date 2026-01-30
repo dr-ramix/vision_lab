@@ -27,9 +27,19 @@ from fer.models.emocatnets_v3 import emocatnets_v3_fer
 from fer.models.emocatnets_v2_fine import emocatnetsv2fine_fer
 from fer.models.emocatnets_v3_fine import emocatnetsv3fine_fer
 from fer.models.emocatnets_fine import emocatnetsfine_fer
+from fer.models.emocatnets_v2_k5 import emocatnets_v2_k5_fer
+
 from fer.models.cnn_resnet50_fine import resnet50fine_fer
 from fer.models.cnn_resenet101_fine import resnet101fine_fer
 from fer.models.convnext_fer_fine import convnextfer_v2_fine
+
+from fer.models.coatnext import coatnext_fer
+
+from fer.models.cnn_resnet50_fine import resnet50fine_fer
+from fer.models.cnn_resenet101_fine import resnet101fine_fer
+from fer.models.convnext_fer_fine import convnextfer_v2_fine
+
+
 # ------------------------------------------------------------
 # Model registry
 # ------------------------------------------------------------
@@ -717,6 +727,204 @@ register_model(
         transfer=transfer,
     ),
 )
+
+
+# ------------------------------------------------------------
+# EmoCatNets-v2-K5 (5x5 DWConv variant, NO transfer)
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv2k5_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2k5_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2k5_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2k5_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+
+
+
+register_model(
+    "coatnext_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "coatnext_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "coatnext_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+register_model(
+    "coatnext_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
+
+
+register_model(
+    "emocatnetsv0_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv0_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv0_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv0_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+register_model(
+    "emocatnetsv2onehead_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2onehead_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2onehead_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2onehead_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+register_model(
+    "emocatnetsv2residual_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2residual_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2residual_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2residual_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
 
 register_model(
     "resnet50_fine",
