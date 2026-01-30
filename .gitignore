@@ -60,6 +60,8 @@ main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/*
 
 main/scripts/_tmp_rafdb_gdrive_files
 
+main/scripts/_tmp_fer2013_kaggle
+
 testing/ckplus
 testing/results_ckplus.csv
 
