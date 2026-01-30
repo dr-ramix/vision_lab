@@ -1,38 +1,104 @@
+# ============================================================
 # fer/models/emocatnets_fine.py
 # ============================================================
-# Fine-tuning/transfer wrapper for YOUR EmoCatNets (C-C-C-T @ 32/16/8/4)
+# Fine-tuning/transfer wrapper for YOUR EmoCatNets (v1)
+#
+# EmoCatNets (64x64):
+#   STN: no downsampling (warp only)
+#   stem: no downsampling (stride=1)
+#   stage1 @64x64  -> down1 -> 32x32
+#   stage2 @32x32  -> down2 -> 16x16
+#   stage3 @16x16  -> down3 ->  8x8
+#   stage4 (relative transformer) @8x8 tokens
 #
 # Transfers timm ConvNeXt pretrained weights into:
-#   - stage1, stage2, stage3  (ConvNextBlock stacks)
-#   - downsample_layer_1/2/3  (LN + conv2 stride2)
+#   - stage1, stage2, stage3
+#   - downsample_layer_1/2/3 (or down1/2/3 if you ever rename)
 #
-# Skips (no equivalents in ConvNeXt):
-#   - stn, stem (k2,s2 != k4,s4), se1..se4, stage4(transformer), final_ln, head
+# Skips:
+#   stn, stem, se*, stage4(transformer), final_ln, head
 #
-# Works with your exact attribute names:
-#   stage1/stage2/stage3, downsample_layer_1/2/3
+# Requires:
+#   pip install timm torchvision
 # ============================================================
 
 from __future__ import annotations
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple, List, Any
+
 import torch
 import torch.nn as nn
 import timm
 
-# Import your existing implementation + sizes
 from fer.models.emocatnets import EmoCatNets, EMOCATNETS_SIZES
 
 
+# -----------------------------
+# Utilities
+# -----------------------------
 def _strip_module_prefix(sd: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
-    if sd and next(iter(sd.keys())).startswith("module."):
+    if not sd:
+        return sd
+    if next(iter(sd.keys())).startswith("module."):
         return {k[len("module."):]: v for k, v in sd.items()}
     return sd
 
 
-def _remap_block_names(k: str) -> str:
+def _choose_prefix(dst_keys: List[str], candidates: List[str]) -> Optional[str]:
+    for p in candidates:
+        if any(k.startswith(p) for k in dst_keys):
+            return p
+    return None
+
+
+def _build_convnext_key_map(dst_state: Dict[str, torch.Tensor]) -> Tuple[dict, dict]:
     """
-    timm ConvNeXt block names -> your ConvNextBlock names
+    Detect destination prefixes so this works even if you rename attributes.
+
+    Returns:
+      stage_prefix_map: timm stage idx -> dst prefix
+      down_prefix_map : timm downsample idx -> dst prefix
+    """
+    dst_keys = list(dst_state.keys())
+
+    # Stages (conv stages only)
+    stage_prefix_map: dict[int, str] = {}
+    s1 = _choose_prefix(dst_keys, ["stage1.", "stages.0."])
+    s2 = _choose_prefix(dst_keys, ["stage2.", "stages.1."])
+    s3 = _choose_prefix(dst_keys, ["stage3.", "stages.2."])
+    if s1:
+        stage_prefix_map[0] = s1
+    if s2:
+        stage_prefix_map[1] = s2
+    if s3:
+        stage_prefix_map[2] = s3
+
+    # Downsample layers
+    down_prefix_map: dict[int, str] = {}
+    d1 = _choose_prefix(dst_keys, ["downsample_layer_1.", "down1."])
+    d2 = _choose_prefix(dst_keys, ["downsample_layer_2.", "down2."])
+    d3 = _choose_prefix(dst_keys, ["downsample_layer_3.", "down3."])
+    if d1:
+        down_prefix_map[1] = d1
+    if d2:
+        down_prefix_map[2] = d2
+    if d3:
+        down_prefix_map[3] = d3
+
+    return stage_prefix_map, down_prefix_map
+
+
+def _strip_timm_blocks_prefix(tail: str) -> str:
+    """
+    timm often: stages.i.blocks.j.*
+    your Sequential: stageX.j.*
+    """
+    return tail.replace("blocks.", "")
+
+
+def _remap_convnext_internal_names(k: str) -> str:
+    """
+    timm ConvNeXt block param names -> your ConvNextBlock names
       dwconv  -> depthwise_conv
       norm    -> layer_norm
       pwconv1 -> pointwise_conv1
@@ -53,35 +119,26 @@ def transfer_convnext_into_emocatnets(
     verbose: bool = True,
 ) -> Dict[str, int]:
     """
-    timm ConvNeXt -> your EmoCatNets (conv parts only)
+    timm ConvNeXt -> your EmoCatNets v1 (conv parts only)
 
-    Maps:
-      timm downsample_layers.1 -> downsample_layer_1
-      timm downsample_layers.2 -> downsample_layer_2
-      timm downsample_layers.3 -> downsample_layer_3
-
-      timm stages.0 -> stage1
-      timm stages.1 -> stage2
-      timm stages.2 -> stage3
-
+    Transfers:
+      - stages.0/1/2 -> stage1/2/3
+      - downsample_layers.1/2/3 -> downsample_layer_1/2/3
     Skips:
-      downsample_layers.0 (stem), stages.3, norm/head
+      - downsample_layers.0 (stem)
+      - stages.3 (last stage)
+      - norm/head
     """
-    # sanity: required prefixes in destination
-    dst_sd = model.state_dict()
-    required_prefixes = [
-        "stage1.", "stage2.", "stage3.",
-        "downsample_layer_1.", "downsample_layer_2.", "downsample_layer_3."
-    ]
-    missing = [p for p in required_prefixes if not any(k.startswith(p) for k in dst_sd.keys())]
-    if missing:
-        raise RuntimeError(
-            f"Destination model is missing expected prefixes: {missing}. "
-            f"Check attribute names in EmoCatNets."
-        )
-
     src = timm.create_model(convnext_name, pretrained=pretrained).eval()
     src_sd = _strip_module_prefix(src.state_dict())
+    dst_sd = model.state_dict()
+
+    stage_prefix_map, down_prefix_map = _build_convnext_key_map(dst_sd)
+
+    if verbose:
+        print(f"[transfer v1] src='{convnext_name}' pretrained={pretrained}")
+        print(f"[transfer v1] detected dst stage prefixes: {stage_prefix_map}")
+        print(f"[transfer v1] detected dst down  prefixes: {down_prefix_map}")
 
     updates: Dict[str, torch.Tensor] = {}
     copied = 0
@@ -89,37 +146,33 @@ def transfer_convnext_into_emocatnets(
     skipped_shape = 0
 
     for k_src, v_src in src_sd.items():
-        # skip ConvNeXt stem + last stage + classifier bits
+        # Skip ConvNeXt stem, last stage, classifier parts
         if k_src.startswith("downsample_layers.0."):
             continue
         if k_src.startswith("stages.3."):
             continue
-        if k_src.startswith("head.") or k_src.startswith("norm."):
+        if k_src.startswith(("head.", "norm.")):
             continue
 
-        k_dst = None
+        k_dst: Optional[str] = None
 
-        # downsample layers mapping
-        if k_src.startswith("downsample_layers.1."):
-            k_dst = "downsample_layer_1." + k_src[len("downsample_layers.1."):]
-        elif k_src.startswith("downsample_layers.2."):
-            k_dst = "downsample_layer_2." + k_src[len("downsample_layers.2."):]
-        elif k_src.startswith("downsample_layers.3."):
-            k_dst = "downsample_layer_3." + k_src[len("downsample_layers.3."):]
-        # stages mapping (ConvNeXt conv stages only)
-        elif k_src.startswith("stages.0."):
-            tail = k_src[len("stages.0."):]
-            tail = tail.replace("blocks.", "")  # timm: stages.i.blocks.j.*
-            k_dst = _remap_block_names("stage1." + tail)
-        elif k_src.startswith("stages.1."):
-            tail = k_src[len("stages.1."):]
-            tail = tail.replace("blocks.", "")
-            k_dst = _remap_block_names("stage2." + tail)
-        elif k_src.startswith("stages.2."):
-            tail = k_src[len("stages.2."):]
-            tail = tail.replace("blocks.", "")
-            k_dst = _remap_block_names("stage3." + tail)
-        else:
+        # Downsample layers: downsample_layers.{1,2,3} -> dst down prefix
+        for i_src, dst_prefix in down_prefix_map.items():
+            src_prefix = f"downsample_layers.{i_src}."
+            if k_src.startswith(src_prefix):
+                k_dst = dst_prefix + k_src[len(src_prefix):]
+                break
+
+        # Stages: stages.{0,1,2}.blocks.{j}.* -> dst stage prefix
+        if k_dst is None:
+            for stage_i, dst_prefix in stage_prefix_map.items():
+                src_prefix = f"stages.{stage_i}."
+                if k_src.startswith(src_prefix):
+                    tail = _strip_timm_blocks_prefix(k_src[len(src_prefix):])
+                    k_dst = _remap_convnext_internal_names(dst_prefix + tail)
+                    break
+
+        if k_dst is None:
             continue
 
         if k_dst not in dst_sd:
@@ -138,11 +191,14 @@ def transfer_convnext_into_emocatnets(
 
     if verbose:
         print(
-            f"[emocatnets transfer] convnext='{convnext_name}' pretrained={pretrained} | "
-            f"copied={copied} skipped_missing={skipped_missing} skipped_shape={skipped_shape}"
+            f"[emocatnets v1 transfer] copied={copied} "
+            f"skipped_missing={skipped_missing} skipped_shape={skipped_shape}"
         )
-        for s in list(updates.keys())[:10]:
-            print("  loaded:", s)
+        sample = list(updates.keys())[:12]
+        if sample:
+            print("[emocatnets v1 transfer] sample loaded keys:")
+            for s in sample:
+                print("  loaded:", s)
 
     return dict(copied=copied, skipped_missing=skipped_missing, skipped_shape=skipped_shape)
 
@@ -150,11 +206,10 @@ def transfer_convnext_into_emocatnets(
 # ------------------------------------------------------------
 # Factory (registry-friendly)
 # ------------------------------------------------------------
-
 _SIZE_TO_CONVNEXT = {
-    "tiny":  "convnext_tiny",
+    "tiny": "convnext_tiny",
     "small": "convnext_small",
-    "base":  "convnext_base",
+    "base": "convnext_base",
     "large": "convnext_large",
     "xlarge": "convnext_xlarge",
 }
@@ -169,13 +224,19 @@ def emocatnetsfine_fer(
     convnext_name: Optional[str] = None,
     convnext_pretrained: bool = True,
     verbose: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> EmoCatNets:
     """
-    Same signature style as your registry expects:
-      factory(num_classes, in_channels, transfer) -> nn.Module
+    Factory for fine-tuning/transfer.
 
-    transfer=True loads timm ConvNeXt weights into stage1-3 + downsample_layer_1-3
+    transfer=True loads timm ConvNeXt weights into:
+      stage1-3 + downsample_layer_1-3 (where compatible).
+
+    Note:
+      This assumes your EmoCatNets dims match the chosen ConvNeXt variant:
+        tiny/small -> (96,192,384,768)
+        base       -> (128,256,512,1024)
+      Otherwise you'll see many skipped_shape.
     """
     size = size.lower()
     if size not in EMOCATNETS_SIZES:
@@ -212,26 +273,31 @@ def emocatnetsfine_fer(
 # ------------------------------------------------------------
 # Optional: param groups helper (recommended for transfer=True)
 # ------------------------------------------------------------
-
 def make_emocatnets_param_groups(
     model: nn.Module,
     base_lr: float,
     backbone_lr_mult: float = 0.1,
 ) -> list[dict]:
     """
-    backbone (loaded): stage1-3 + downsample_layer_1-3
-    new modules: stn, stem, se*, stage4, final_ln, head
+    Backbone (loaded): stage1-3 + downsample_layer_1-3 (or down1-3)
+    New modules: stn, stem, se*, stage4, final_ln, head
     """
     backbone, rest = [], []
+    backbone_prefixes = (
+        "stage1", "stage2", "stage3",
+        "downsample_layer_1", "downsample_layer_2", "downsample_layer_3",
+        "down1", "down2", "down3",
+    )
+
     for n, p in model.named_parameters():
         if not p.requires_grad:
             continue
-        if n.startswith(("stage1", "stage2", "stage3", "downsample_layer_1", "downsample_layer_2", "downsample_layer_3")):
+        if n.startswith(backbone_prefixes):
             backbone.append(p)
         else:
             rest.append(p)
 
-    groups = []
+    groups: list[dict] = []
     if backbone:
         groups.append({"params": backbone, "lr": base_lr * backbone_lr_mult})
     if rest:
