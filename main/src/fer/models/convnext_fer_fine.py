@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import timm
 
-from fer.models.convnextfer_v2 import ConvNeXtFERv2, CONVNEXTFER_SIZES
+from fer.models.convnext_fer import ConvNeXtFERv2, CONVNEXTFER_SIZES
 
 
 # ------------------------------------------------------------

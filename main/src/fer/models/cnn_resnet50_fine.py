@@ -14,7 +14,7 @@ import torch
 import torch.nn as nn
 import timm
 
-from fer.models.resnet50 import ResNet50FER
+from fer.models.cnn_resnet50 import ResNet50FER
 
 
 def _strip_module_prefix(sd: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
