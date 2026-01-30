@@ -32,7 +32,9 @@ vision_lab/main/src/fer/dataset/sources/
 
 Additionally mirrors FER2013 into:
 vision_lab/main/src/fer/dataset/standardized/fer2013/fer2013_raw/
-BUT: inside fer2013_raw, the "neutral" class is removed (train/validation/test).
+BUT:
+- inside fer2013_raw, the "neutral" class is removed (train/val/test)
+- split folder name is "val" (not "validation") inside fer2013_raw
 
 Auth:
 - Kaggle CLI must be installed: pip install kaggle
@@ -229,7 +231,6 @@ def _read_fer2013_rows(csv_path: Path) -> list[FerRow]:
         if not reader.fieldnames:
             raise RuntimeError(f"Empty CSV: {csv_path}")
 
-        # Kaggle icml_face_data.csv sometimes has leading spaces in header names.
         fieldmap = {c.strip().lower(): c for c in reader.fieldnames}
         if "emotion" not in fieldmap or "usage" not in fieldmap or "pixels" not in fieldmap:
             raise RuntimeError(f"Unexpected columns in {csv_path}: {reader.fieldnames}")
@@ -264,7 +265,6 @@ def _pixels_to_img48(pixels_str: str) -> Image.Image:
 
 
 def _write_fer2013_images(rows: list[FerRow], out_root: Path) -> list[int]:
-    # Overwrite existing
     if out_root.exists():
         shutil.rmtree(out_root)
     out_root.mkdir(parents=True, exist_ok=True)
@@ -428,16 +428,29 @@ def _write_ferplus_images(
 
 
 # ============================================================
-# FER2013_raw post-processing: remove "neutral"
+# fer2013_raw post-processing:
+# 1) rename split folder validation -> val
+# 2) remove "neutral" from train/val/test
 # ============================================================
+def _rename_validation_to_val(fer2013_raw_root: Path) -> None:
+    old = fer2013_raw_root / "validation"
+    new = fer2013_raw_root / "val"
+    if not old.exists():
+        return
+    if new.exists():
+        shutil.rmtree(new)
+    old.rename(new)
+    print("Renamed fer2013_raw split folder: validation -> val")
+
+
 def _remove_neutral_from_fer2013_raw(fer2013_raw_root: Path) -> None:
     """
-    Removes the 'neutral' class folder from train/validation/test inside fer2013_raw.
+    Removes the 'neutral' class folder from train/val/test inside fer2013_raw.
     Expected structure:
-      fer2013_raw/{train,validation,test}/neutral/
+      fer2013_raw/{train,val,test}/neutral/
     """
     removed = 0
-    for split in ["train", "validation", "test"]:
+    for split in ["train", "val", "test"]:
         p = fer2013_raw_root / split / "neutral"
         if p.exists() and p.is_dir():
             shutil.rmtree(p)
@@ -756,7 +769,8 @@ def main() -> None:
     # ---- Mirror FER2013 into standardized/fer2013/fer2013_raw
     fer2013_raw_out = standardized_fer2013_dir / "fer2013_raw"
     _copytree_overwrite(fer2013_out, fer2013_raw_out)
-    _remove_neutral_from_fer2013_raw(fer2013_raw_out)  # <-- NEW
+    _rename_validation_to_val(fer2013_raw_out)          # <-- NEW (validation -> val)
+    _remove_neutral_from_fer2013_raw(fer2013_raw_out)   # <-- updated to use val
     print(f"Mirrored FER2013 into: {fer2013_raw_out}")
 
     # ---- FERPlus build (from local labels csv + FER2013 pixels)
@@ -774,10 +788,11 @@ def main() -> None:
 
     print("\nDone. Sources ready:")
     print(f" - {sources_dir/'fer2013'}")
-    print(f" - {standardized_fer2013_dir/'fer2013_raw'}  (neutral removed)")
+    print(f" - {standardized_fer2013_dir/'fer2013_raw'}  (val folder, neutral removed)")
     print(f" - {sources_dir/'ferplus'}")
     print(f" - {sources_dir/'rafdb'}")
 
 
 if __name__ == "__main__":
     main()
+
