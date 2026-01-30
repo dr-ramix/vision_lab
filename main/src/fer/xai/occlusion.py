@@ -7,11 +7,11 @@ class OcclusionSaliency:
     def __init__(
         self,
         model: torch.nn.Module,
-        window_size =(16, 16),
-        stride = (8, 8),
+        window_size=(16, 16),
+        stride=(8, 8),
         occlusion_value: float = 0.0,
         batch_size: int = 32,
-        device = None,
+        device=None,
     ):
         self.model = model.eval()
         self.window_h, self.window_w = window_size
@@ -24,17 +24,19 @@ class OcclusionSaliency:
     def __call__(
         self,
         input_tensor: torch.Tensor,
-        target_class = None,
+        target_class=None,
         normalize: bool = True,
     ):
         input_tensor = input_tensor.to(self.device)
-        _, C, H, W = input_tensor.shape
+        _, _, H, W = input_tensor.shape
 
         logits = self.model(input_tensor)
-        if target_class is None:
-            target_class = logits.argmax(dim=1).item()
+        probs = F.softmax(logits, dim=1)
 
-        baseline_score = logits[0, target_class].item()
+        if target_class is None:
+            target_class = probs.argmax(dim=1).item()
+
+        baseline_score = probs[0, target_class].item()
 
         saliency = torch.zeros((H, W), device=self.device)
         count_map = torch.zeros((H, W), device=self.device)
@@ -44,36 +46,28 @@ class OcclusionSaliency:
 
         for y in range(0, H - self.window_h + 1, self.stride_h):
             for x in range(0, W - self.window_w + 1, self.stride_w):
-
                 occluded = input_tensor.clone()
-                occluded[:, :, y:y + self.window_h, x:x + self.window_w] = self.occlusion_value
+                occluded[:, :, y:y+self.window_h, x:x+self.window_w] = self.occlusion_value
 
                 occluded_batch.append(occluded)
                 coords.append((y, x))
 
                 if len(occluded_batch) == self.batch_size:
                     self._process_batch(
-                        occluded_batch,
-                        coords,
-                        saliency,
-                        count_map,
-                        baseline_score,
-                        target_class,
+                        occluded_batch, coords,
+                        saliency, count_map,
+                        baseline_score, target_class
                     )
                     occluded_batch, coords = [], []
 
         if occluded_batch:
             self._process_batch(
-                occluded_batch,
-                coords,
-                saliency,
-                count_map,
-                baseline_score,
-                target_class,
+                occluded_batch, coords,
+                saliency, count_map,
+                baseline_score, target_class
             )
 
         saliency /= count_map.clamp(min=1)
-
         saliency = saliency.clamp(min=0)
 
         if normalize:
@@ -92,10 +86,11 @@ class OcclusionSaliency:
         target_class,
     ):
         batch_tensor = torch.cat(batch, dim=0)
-        scores = self.model(batch_tensor)[:, target_class]
+        logits = self.model(batch_tensor)
+        probs = F.softmax(logits, dim=1)[:, target_class]
 
-        deltas = baseline_score - scores
+        deltas = baseline_score - probs
 
         for delta, (y, x) in zip(deltas, coords):
-            saliency[y:y + self.window_h, x:x + self.window_w] += delta
-            count_map[y:y + self.window_h, x:x + self.window_w] += 1
+            saliency[y:y+self.window_h, x:x+self.window_w] += delta
+            count_map[y:y+self.window_h, x:x+self.window_w] += 1
