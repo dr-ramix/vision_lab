@@ -74,65 +74,24 @@ class LayerNorm(nn.Module):
 
 
 # ============================================================
-# Residual Stem (NO downsampling): 64 -> 64
-# ConvNeXt-style residual stem
+# Stem (NO residual, NO downsampling): 64 -> 64
 # ============================================================
 
-class ResidualStem(nn.Module):
+class Stem(nn.Module):
     """
-    Residual stem that keeps spatial resolution (H,W unchanged).
-    - No downsampling (stride=1 everywhere).
-    - Projects in_channels -> out_channels with 3x3 conv (s=1).
-    - Main branch is ConvNeXt-style:
-        DWConv7 -> LN(NHWC) -> Linear(4x) -> GELU -> Linear -> LayerScale
-    - Residual add + optional DropPath.
+    Stem that keeps spatial resolution (H,W unchanged).
+    - No downsampling (stride=1).
+    - Projects in_channels -> out_channels with 3x3 conv + LayerNorm (channels_first).
     """
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        layer_scale_init_value: float = 1e-6,
-        drop_path: float = 0.0,
-    ):
+    def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
-
-        # project to out_channels without downsampling
         self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
-
-        # ConvNeXt-style residual branch (channels = out_channels)
-        self.dwconv = nn.Conv2d(out_channels, out_channels, kernel_size=7, stride=1, padding=3, groups=out_channels)
-        self.ln = nn.LayerNorm(out_channels, eps=1e-6)  # NHWC
-        self.pw1 = nn.Linear(out_channels, out_channels * 4)
-        self.act = nn.GELU()
-        self.pw2 = nn.Linear(out_channels * 4, out_channels)
-
-        self.gamma = (
-            nn.Parameter(layer_scale_init_value * torch.ones(out_channels), requires_grad=True)
-            if layer_scale_init_value > 0 else None
-        )
-        self.droppath = StochasticDepth(p=drop_path, mode="row") if drop_path > 0 else nn.Identity()
-
-        # small stabilizing norm at the end
-        self.out_norm = LayerNorm(out_channels, eps=1e-6, data_format="channels_first")
+        self.norm = LayerNorm(out_channels, eps=1e-6, data_format="channels_first")
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.proj(x)          # (B, C, H, W)  no downsampling
-        identity = x
-
-        out = self.dwconv(x)      # (B, C, H, W)
-        out = out.permute(0, 2, 3, 1)  # (B, H, W, C)
-        out = self.ln(out)
-        out = self.pw1(out)
-        out = self.act(out)
-        out = self.pw2(out)
-        if self.gamma is not None:
-            out = self.gamma * out
-        out = out.permute(0, 3, 1, 2)  # (B, C, H, W)
-
-        out = self.droppath(out)
-        out = out + identity
-        out = self.out_norm(out)
-        return out
+        x = self.proj(x)   # (B, C, H, W) no downsampling
+        x = self.norm(x)
+        return x
 
 
 # ============================================================
@@ -149,13 +108,11 @@ class ConvNeXtFERConfig:
 
 
 CONVNEXTFER_SIZES: Dict[str, ConvNeXtFERConfig] = {
-    # Note: stage4 now runs at 8x8 (instead of 4x4), so it's heavier.
-    # These are kept as your original dims ladder; if you OOM, reduce dims[3].
-    "tiny":  ConvNeXtFERConfig(depths=(3, 3,  9,  3), dims=( 96, 192,  384,  768), drop_path_rate=0.10),
-    "small": ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=( 96, 192,  384,  768), drop_path_rate=0.15),
-    "base":  ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(128, 256,  512, 1024), drop_path_rate=0.20),
-    "large": ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(192, 384,  768, 1536), drop_path_rate=0.30),
-    "xlarge":ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(256, 512, 1024, 2048), drop_path_rate=0.40),
+    "tiny":   ConvNeXtFERConfig(depths=(3, 3,  9,  3), dims=( 96, 192,  384,  768), drop_path_rate=0.10),
+    "small":  ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=( 96, 192,  384,  768), drop_path_rate=0.15),
+    "base":   ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(128, 256,  512, 1024), drop_path_rate=0.20),
+    "large":  ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(192, 384,  768, 1536), drop_path_rate=0.30),
+    "xlarge": ConvNeXtFERConfig(depths=(3, 3, 27,  3), dims=(256, 512, 1024, 2048), drop_path_rate=0.40),
 }
 
 
@@ -168,17 +125,15 @@ class ConvNeXtFERv2(nn.Module):
     """
     ConvNeXtFERv2 (64x64):
 
-    stem (residual, stride=1): 64 -> 64
+    stem (stride=1): 64 -> 64
     stage1 @64
     down1 (s=2): 64 -> 32
     stage2 @32
     down2 (s=2): 32 -> 16
     stage3 @16
     down3 (s=2): 16 -> 8
-    stage4 @8    (NO further downsampling)
+    stage4 @8
     GAP -> LN -> head
-
-    This keeps more spatial detail for FER.
     """
     def __init__(
         self,
@@ -196,15 +151,10 @@ class ConvNeXtFERv2(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # Stem: NO downsampling, residual (ConvNeXt-style)
-        self.stem = ResidualStem(
-            in_channels=in_channels,
-            out_channels=d0,
-            layer_scale_init_value=layer_scale_init_value,
-            drop_path=0.0,  # keep stem stable; you can set small dp if you want
-        )
+        # Stem: NO residual, NO downsampling
+        self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
-        # Downsampling: 64->32->16->8 (NO 8->4)
+        # Downsampling: 64->32->16->8
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
             nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
@@ -223,28 +173,24 @@ class ConvNeXtFERv2(nn.Module):
         dp_rates = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
 
-        # stage1 @64
         self.stage1 = nn.Sequential(*[
             ConvNextBlock(d0, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[0])
         ])
         cur += depths[0]
 
-        # stage2 @32
         self.stage2 = nn.Sequential(*[
             ConvNextBlock(d1, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[1])
         ])
         cur += depths[1]
 
-        # stage3 @16
         self.stage3 = nn.Sequential(*[
             ConvNextBlock(d2, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[2])
         ])
         cur += depths[2]
 
-        # stage4 @8 (no extra downsampling)
         self.stage4 = nn.Sequential(*[
             ConvNextBlock(d3, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[3])
@@ -265,24 +211,19 @@ class ConvNeXtFERv2(nn.Module):
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # stem @64
         x = self.stem(x)         # (B, d0, 64, 64)
         x = self.stage1(x)       # (B, d0, 64, 64)
 
-        # 64->32
         x = self.downsample_layer_1(x)  # (B, d1, 32, 32)
         x = self.stage2(x)
 
-        # 32->16
         x = self.downsample_layer_2(x)  # (B, d2, 16, 16)
         x = self.stage3(x)
 
-        # 16->8
         x = self.downsample_layer_3(x)  # (B, d3, 8, 8)
         x = self.stage4(x)
 
-        # GAP
-        x = x.mean(dim=(-2, -1))
+        x = x.mean(dim=(-2, -1))  # GAP
         x = self.final_ln(x)
         x = self.head(x)
         return x
@@ -319,6 +260,7 @@ def convnextfer_v2(
 def _count_params(m: nn.Module) -> int:
     return sum(p.numel() for p in m.parameters() if p.requires_grad)
 
+
 @torch.no_grad()
 def _shape_test(image_size: int = 64, batch_size: int = 2, num_classes: int = 6):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -328,6 +270,7 @@ def _shape_test(image_size: int = 64, batch_size: int = 2, num_classes: int = 6)
         y = model(x)
         print(f"{name:6s} | params={_count_params(model):,} | out={tuple(y.shape)}")
         assert y.shape == (batch_size, num_classes)
+
 
 def _one_train_step(size: str = "tiny", image_size: int = 64, num_classes: int = 6):
     device = "cuda" if torch.cuda.is_available() else "cpu"
