@@ -205,4 +205,3 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-26_02-07-38__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.7889933251600599,0.736340618336887,hosseinis,2026-01-26T09:52:09
 2026-01-26_10-15-47__emocatnetsv2fine_tiny__user-hosseinis__e30877,emocatnetsv2fine_tiny,accuracy,0.28088816237569814,0.2575959488272921,hosseinis,2026-01-26T10:23:11
 2026-01-25_13-28-29__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7441765427053535,0.7062233475479744,hosseinis,2026-01-26T12:27:38
-2026-01-31_11-37-39__resnet101__user-hosseinis__e30877,resnet101,accuracy,0.17654270535349406,0.15698294243070363,hosseinis,2026-01-31T11:47:51
