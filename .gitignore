@@ -112,3 +112,6 @@ classification_model/images/
 classification_model/download_kaggle_photos.py
 classification_model/classification_scores.csv
 classification_model/images_pre_processed/
+
+#XAI results
+main/xai_results/
