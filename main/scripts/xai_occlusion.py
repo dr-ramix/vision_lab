@@ -1,0 +1,152 @@
+import torch
+import torch.nn.functional as F
+import numpy as np
+import random
+
+from pathlib import Path
+from collections import defaultdict
+from tqdm import tqdm
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
+
+from fer.models.cnn_resnet18 import ResNet18FER
+from fer.xai.occlusion import OcclusionSaliency
+
+
+SEED = 42
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+
+
+DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
+WEIGHTS_PATH = "../weights/resnet18fer/model_state_dict.pt"
+
+TOP_PERCENT = 20
+MAX_IMAGES = 200
+
+WINDOW_SIZE = (8, 8)
+STRIDE = (4, 4)
+BATCH_SIZE = 128
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print(" Occlusion Faithfulness Evaluation ")
+print(f"Device: {DEVICE}")
+print(f"Batch size: {BATCH_SIZE}")
+print(f"Top percent removed: {TOP_PERCENT}%")
+
+
+transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor()
+])
+
+dataset = ImageFolder(DATASET_ROOT, transform=transform)
+num_classes = len(dataset.classes)
+
+print("Classes:", dataset.classes)
+
+
+per_class = MAX_IMAGES // num_classes
+
+class_indices = defaultdict(list)
+for idx, (_, label) in enumerate(dataset):
+    class_indices[label].append(idx)
+
+selected_indices = []
+for label, indices in class_indices.items():
+    k = min(per_class, len(indices))
+    selected_indices.extend(random.sample(indices, k))
+
+random.shuffle(selected_indices)
+
+print(f"Selected {len(selected_indices)} images "
+      f"({per_class} per class)")
+
+
+
+model = ResNet18FER(num_classes=num_classes)
+model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
+model.to(DEVICE)
+model.eval()
+
+print("Model loaded.")
+
+
+occlusion = OcclusionSaliency(
+    model=model,
+    window_size=WINDOW_SIZE,
+    stride=STRIDE,
+    occlusion_value=0.0,
+    batch_size=BATCH_SIZE,
+)
+
+
+confidence_drops = []
+per_class_drops = {c: [] for c in range(num_classes)}
+
+processed = 0
+
+for idx in tqdm(selected_indices, desc="Processing images"):
+    if MAX_IMAGES and processed >= MAX_IMAGES:
+        break
+
+    x, y = dataset[idx]
+
+    x = x.unsqueeze(0).to(DEVICE)
+    y = torch.tensor([y], device=DEVICE)
+
+    with torch.no_grad():
+        probs = F.softmax(model(x), dim=1)
+        orig_conf = probs[0, y].item()
+
+    if orig_conf < 0.5:
+        continue
+
+    heatmap = occlusion(
+        input_tensor=x,
+        target_class=y.item(),
+        normalize=True
+    )
+
+    threshold = np.percentile(heatmap, 100 - TOP_PERCENT)
+    mask = heatmap >= threshold
+
+    img = x[0].permute(1, 2, 0).detach().cpu().numpy()
+    mean_val = img.mean()
+
+    occluded_img = img.copy()
+    occluded_img[mask] = mean_val
+
+    occluded_tensor = torch.from_numpy(occluded_img) \
+        .permute(2, 0, 1) \
+        .unsqueeze(0) \
+        .float() \
+        .to(DEVICE)
+
+    with torch.no_grad():
+        occ_probs = F.softmax(model(occluded_tensor), dim=1)
+        occ_conf = occ_probs[0, y].item()
+
+    drop = orig_conf - occ_conf
+
+    confidence_drops.append(drop)
+    per_class_drops[y.item()].append(drop)
+    processed += 1
+
+confidence_drops = np.array(confidence_drops)
+
+print("\nRESULTS:")
+print(f"Images evaluated: {len(confidence_drops)}")
+print(f"Mean confidence drop: {confidence_drops.mean():.4f}")
+print(f"Std confidence drop:  {confidence_drops.std():.4f}")
+
+print("\nPer-class confidence drops:")
+for cls_idx, drops in per_class_drops.items():
+    if len(drops) == 0:
+        continue
+    print(
+        f"{dataset.classes[cls_idx]:>10s}: "
+        f"{np.mean(drops):.4f} ± {np.std(drops):.4f}"
+    )
