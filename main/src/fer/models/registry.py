@@ -11,6 +11,7 @@ from fer.models.cnn_resnet50 import ResNet50FER
 from fer.models.convnext import convnextfer
 from fer.models.emonext import emonext_fer
 from fer.models.emocatnets import emocatnets_fer
+from fer.models.emocatnets_v0 import emocatnets_v0_fer
 from fer.models.mobilenetv2 import mobilenetv2_fer
 from fer.models.mobilenetv3 import (
     mobilenetv3_tiny_fer,
@@ -25,9 +26,11 @@ from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
 from fer.models.emocatnets_v3 import emocatnets_v3_fer
 from fer.models.emocatnets_v2_fine import emocatnetsv2_fine_fer
+from fer.models.emocatnets_v2_one_head import emocatnetv2onehead_fer
 from fer.models.emocatnets_v3_fine import emocatnetsv3fine_fer
 from fer.models.emocatnets_fine import emocatnetsfine_fer
 from fer.models.emocatnets_v2_k5 import emocatnets_v2_k5_fer
+from fer.models.emcoatnets_v2_residuals import emocatnetsv2residual_fer
 
 from fer.models.cnn_resnet50_fine import resnet50fine_fer
 from fer.models.cnn_resenet101_fine import resnet101fine_fer
@@ -854,7 +857,7 @@ register_model(
 
 register_model(
     "emocatnetsv2onehead_tiny",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
         size="tiny",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -863,7 +866,7 @@ register_model(
 
 register_model(
     "emocatnetsv2onehead_small",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
         size="small",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -872,7 +875,7 @@ register_model(
 
 register_model(
     "emocatnetsv2onehead_base",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
         size="base",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -881,7 +884,7 @@ register_model(
 
 register_model(
     "emocatnetsv2onehead_large",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_one_head_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
         size="large",
         num_classes=num_classes,
         in_channels=in_channels,

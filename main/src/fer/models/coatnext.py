@@ -422,6 +422,7 @@ def coatnext_fer(
     in_channels: int = 3,
     num_classes: int = 6,
     *,
+    transfer: bool = False,
     drop_path_rate: Optional[float] = None,
     layer_scale_init_value: Optional[float] = None,
     head_init_scale: Optional[float] = None,
