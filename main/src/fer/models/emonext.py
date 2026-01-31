@@ -7,25 +7,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.ops import StochasticDepth
 
+
 class ConvNextBlock(nn.Module):
     """
-    ConvNeXt residual block.
-
-    Applies a depthwise 7×7 convolution for spatial mixing, followed by channel-wise
-    LayerNorm (NHWC), a pointwise feed-forward network with GELU activation, optional
-    layer scaling, and stochastic depth. The block uses a residual connection and
-    preserves the input shape.
-
-    Args:
-        dim (int): Number of input/output channels.
-        drop_path (float): Stochastic depth rate.
-        layer_scale_init_value (float): Initial value for layer scale (gamma).
-
-    Input shape:
-        (N, C, H, W)
-
-    Output shape:
-        (N, C, H, W)
+    ConvNeXt residual block (keeps HxW).
     """
     def __init__(self, dim: int, drop_path: float = 0.0, layer_scale_init_value: float = 1e-6):
         super().__init__()
@@ -53,10 +38,7 @@ class ConvNextBlock(nn.Module):
             x = self.gamma * x
         x = x.permute(0, 3, 1, 2)       # (B, C, H, W)
         x = self.droppath(x)
-
-        output = x + identity
-
-        return output
+        return x + identity
 
 
 class LayerNorm(nn.Module):
@@ -74,6 +56,8 @@ class LayerNorm(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
+
+        # channels_first (NCHW)
         u = x.mean(1, keepdim=True)
         s = (x - u).pow(2).mean(1, keepdim=True)
         x = (x - u) / torch.sqrt(s + self.eps)
@@ -118,7 +102,7 @@ class SELayer(nn.Module):
             nn.Linear(channels, hidden, bias=False),
             nn.GELU(),
             nn.Linear(hidden, channels, bias=False),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -146,21 +130,20 @@ class DotProductSelfAttention(nn.Module):
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         if x.dim() != 3:
             raise ValueError(f"Expected (B, T, C), got {tuple(x.shape)}")
+
         x = self.norm(x)
         q = self.q(x)
         k = self.k(x)
         v = self.v(x)
 
-        scale = 1.0 / math.sqrt(self.dim)  # standard
-        scores = torch.matmul(q, k.transpose(-2, -1)) * scale   # (B, T, T)
-        attn = torch.softmax(scores, dim=-1)                    # (B, T, T)
+        scale = 1.0 / math.sqrt(self.dim)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+        attn = torch.softmax(scores, dim=-1)
         attn = self.attn_dropout(attn)
 
-        out = torch.matmul(attn, v)                             # (B, T, C)
-        out = out + x                                           # residual
+        out = torch.matmul(attn, v)
+        out = out + x  # residual
         return out, attn
-
-
 
 
 @dataclass(frozen=True)
@@ -172,20 +155,25 @@ class EmoNeXtConfig:
     head_init_scale: float = 1.0
     attn_dropout: float = 0.0
 
+
 EMONEXT_SIZES: Dict[str, EmoNeXtConfig] = {
-    
-    "tiny":  EmoNeXtConfig(depths=(3, 3,  9,  3), dims=( 96, 192,  384,  768)),
-    "small": EmoNeXtConfig(depths=(3, 3, 27,  3), dims=( 96, 192,  384,  768)),
-    "base":  EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(128, 256,  512, 1024)),
-    "large": EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(192, 384,  768, 1536)),
-    "xlarge":EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(256, 512, 1024, 2048)),
+    "tiny":   EmoNeXtConfig(depths=(3, 3,  9,  3), dims=( 96, 192,  384,  768)),
+    "small":  EmoNeXtConfig(depths=(3, 3, 27,  3), dims=( 96, 192,  384,  768)),
+    "base":   EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(128, 256,  512, 1024)),
+    "large":  EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(192, 384,  768, 1536)),
+    "xlarge": EmoNeXtConfig(depths=(3, 3, 27,  3), dims=(256, 512, 1024, 2048)),
 }
 
 
 class EmoNeXtFER(nn.Module):
     """
-    Same naming/logic: STN -> stem -> stages with downsampling -> GAP+LN -> head.
-    Patch-attention computed only when labels provided or return_attn=True.
+    Modified downsampling schedule for 64x64 inputs:
+
+      STN (warps only, keeps 64x64)
+      Stem: NO downsampling (64 -> 64)
+      Downsample layers: 64 -> 32 -> 16 -> 8
+      Stage4 runs at 8x8
+      GAP + LN + head
     """
     def __init__(
         self,
@@ -202,11 +190,19 @@ class EmoNeXtFER(nn.Module):
         super().__init__()
         self.stn_layer = STNLayer(in_channels=in_channels, hidden=stn_hidden)
 
+        # -------------------------
+        # Stem: NO downsampling
+        # -------------------------
+        # was: k=2, s=2 => 64->32
+        # now: k=3, s=1, p=1 => 64->64
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, dims[0], kernel_size=2, stride=2, padding=0),
+            nn.Conv2d(in_channels, dims[0], kernel_size=3, stride=1, padding=1),
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
         )
 
+        # -------------------------
+        # Downsample: 64 -> 32 -> 16 -> 8
+        # -------------------------
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first"),
             nn.Conv2d(dims[0], dims[1], kernel_size=2, stride=2, padding=0),
@@ -254,6 +250,7 @@ class EmoNeXtFER(nn.Module):
         self.attention = DotProductSelfAttention(dims[-1], attn_dropout=attn_dropout)
         self.head = nn.Linear(dims[-1], num_classes)
 
+        # init
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 nn.init.trunc_normal_(m.weight, std=0.02)
@@ -265,34 +262,33 @@ class EmoNeXtFER(nn.Module):
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor, labels: Optional[torch.Tensor] = None, return_attn: bool = False):
-        x = self.stn_layer(x)
+        x = self.stn_layer(x)   # keeps 64x64 (warping)
 
-        x = self.stem(x)
-        x = self.stage1(x)
+        x = self.stem(x)        # 64 -> 64
+        x = self.stage1(x)      # 64
 
-        x = self.downsample_layer_1(x)
+        x = self.downsample_layer_1(x)  # 64 -> 32
         x = self.se_layer_1(x)
-        x = self.stage2(x)
+        x = self.stage2(x)              # 32
 
-        x = self.downsample_layer_2(x)
+        x = self.downsample_layer_2(x)  # 32 -> 16
         x = self.se_layer_2(x)
-        x = self.stage3(x)
+        x = self.stage3(x)              # 16
 
-        x = self.downsample_layer_3(x)
+        x = self.downsample_layer_3(x)  # 16 -> 8
         x = self.se_layer_3(x)
-        x = self.stage4(x)  # (B, C, H, W)
+        x = self.stage4(x)              # 8
 
-        feature = x.mean(dim=(-2, -1))   # global average pool -> (B, C)
+        feature = x.mean(dim=(-2, -1))  # GAP -> (B, C)
         feature = self.final_ln(feature)
         logits = self.head(feature)
 
         if (labels is not None) or return_attn:
-            tokens = x.flatten(2).transpose(1, 2)     # (B, T, C)
-            _, attn = self.attention(tokens)          # (B, T, T)
+            tokens = x.flatten(2).transpose(1, 2)  # (B, T, C), T = 8*8 = 64
+            _, attn = self.attention(tokens)
             return logits, attn
 
         return logits
-
 
 
 def emonext_fer(
@@ -325,10 +321,6 @@ def emonext_fer(
     )
 
 
-# -----------------------------
-# Loss (training hyperparameter lambda_sa)
-# -----------------------------
-
 def compute_loss_emonext(logits: torch.Tensor, labels: torch.Tensor, attn: torch.Tensor, lambda_sa: float = 0.1):
     """
     Cross-entropy with label smoothing + weak patch-attention variance regularizer.
@@ -341,44 +333,24 @@ def compute_loss_emonext(logits: torch.Tensor, labels: torch.Tensor, attn: torch
     return ce + lambda_sa * attention_loss
 
 
-# -----------------------------
-# Example usage
-# -----------------------------
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    size = "tiny"               # tiny/small/base/large/xlarge
-    lr = 3e-4                   
-    weight_decay = 0.05         
-    drop_path_rate = 0.1      
-    lambda_sa = 0.1             # attention regularizer strength (keep small)
-    label_smoothing = 0.05       # in compute_loss_emonext
-    attn_dropout = 0.0          
 
     model = emonext_fer(
-        size=size,
+        size="tiny",
         in_channels=1,
         num_classes=6,
-        drop_path_rate=drop_path_rate,
-        attn_dropout=attn_dropout,
+        drop_path_rate=0.1,
+        attn_dropout=0.0,
     ).to(device)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     images = torch.randn(8, 1, 64, 64, device=device)
     labels = torch.randint(0, 6, (8,), device=device)
 
     model.train()
-    logits, attn = model(images, labels=labels)  # training returns attn
-    loss = compute_loss_emonext(logits, labels, attn, lambda_sa=lambda_sa)
+    logits, attn = model(images, labels=labels)
+    loss = compute_loss_emonext(logits, labels, attn, lambda_sa=0.1)
 
-    optimizer.zero_grad(set_to_none=True)
-    loss.backward()
-    optimizer.step()
-
-    model.eval()
-    with torch.no_grad():
-        logits_inf = model(images)               # inference returns logits only
-        preds = logits_inf.argmax(dim=1)
-
+    print("logits:", logits.shape)  # (8, 6)
+    print("attn:", attn.shape)      # (8, 64, 64) because final map is 8x8 => 64 tokens
     print("loss:", float(loss))
-    print("preds:", preds[:5])
