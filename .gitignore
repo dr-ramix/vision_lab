@@ -8,7 +8,7 @@ venv/
 
 training_output/runs/
 
-jobs/*
+
 !jobs/.gitkeep
 
 
