@@ -31,16 +31,34 @@ class SEBlock(nn.Module):
 
 
 class InvertedResidualV3(nn.Module):
-    def __init__(self, inp: int, oup: int, kernel: int, stride: int, expand: float, use_se: bool, use_hs: bool):
+    """
+    MobileNetV3-style inverted residual block.
+
+    Downsampling (if any) happens only in the depthwise conv via `stride`.
+    Residual connection is used only when stride=1 and inp==oup.
+    """
+    def __init__(
+        self,
+        inp: int,
+        oup: int,
+        kernel: int,
+        stride: int,
+        expand: float,
+        use_se: bool,
+        use_hs: bool,
+    ):
         super().__init__()
+        if stride not in (1, 2):
+            raise ValueError(f"stride must be 1 or 2, got {stride}")
+
         hidden_dim = int(round(inp * expand))
         self.use_residual = (stride == 1 and inp == oup)
 
         activation: nn.Module = HSwish() if use_hs else nn.ReLU(inplace=True)
 
-        layers = []
+        layers: list[nn.Module] = []
 
-        # Expansion
+        # Expansion (1x1)
         if expand != 1:
             layers += [
                 nn.Conv2d(inp, hidden_dim, 1, bias=False),
@@ -50,18 +68,26 @@ class InvertedResidualV3(nn.Module):
         else:
             hidden_dim = inp
 
-        # Depthwise
+        # Depthwise (k x k), stride controls downsampling
         layers += [
-            nn.Conv2d(hidden_dim, hidden_dim, kernel, stride, kernel // 2, groups=hidden_dim, bias=False),
+            nn.Conv2d(
+                hidden_dim,
+                hidden_dim,
+                kernel_size=kernel,
+                stride=stride,
+                padding=kernel // 2,
+                groups=hidden_dim,
+                bias=False,
+            ),
             nn.BatchNorm2d(hidden_dim),
             activation,
         ]
 
-        # SE
+        # Squeeze-and-Excitation (optional)
         if use_se:
             layers.append(SEBlock(hidden_dim))
 
-        # Projection
+        # Projection (1x1)
         layers += [
             nn.Conv2d(hidden_dim, oup, 1, bias=False),
             nn.BatchNorm2d(oup),
@@ -70,13 +96,14 @@ class InvertedResidualV3(nn.Module):
         self.block = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        out = self.block(x)
         if self.use_residual:
-            return x + self.block(x)
-        return self.block(x)
+            return x + out
+        return out
 
 
 # ----------------------------
-# Channel scaling helper (kept minimal)
+# Channel scaling helper
 # ----------------------------
 def _make_divisible(v: float, divisor: int = 8) -> int:
     v = int(v + divisor / 2) // divisor * divisor
@@ -85,8 +112,14 @@ def _make_divisible(v: float, divisor: int = 8) -> int:
 
 class _MobileNetV3LargeBase(nn.Module):
     """
-    Internal base so we can keep the SAME explicit Sequential style
-    while only changing width_mult per size.
+    MobileNetV3-ish backbone for FER.
+    Modified downsampling schedule (for 64x64 inputs):
+
+      No downsampling in stem: 64 -> 64
+      Three stride-2 blocks in features: 64 -> 32 -> 16 -> 8
+      No further downsampling afterwards.
+
+    Head uses global average pooling to 1x1.
     """
     def __init__(self, num_classes: int = 6, in_channels: int = 3, width_mult: float = 1.0):
         super().__init__()
@@ -94,32 +127,47 @@ class _MobileNetV3LargeBase(nn.Module):
         def c(ch: int) -> int:
             return _make_divisible(ch * width_mult, 8)
 
-        # Stem
+        # Stem (NO downsampling): stride=1 keeps 64x64
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, c(16), 3, stride=2, padding=1, bias=False),
+            nn.Conv2d(in_channels, c(16), 3, stride=1, padding=1, bias=False),  # changed stride=2 -> 1
             nn.BatchNorm2d(c(16)),
-            HSwish()
+            HSwish(),
         )
 
-        # Feature blocks (same list, scaled channels)
+        # Feature blocks (downsampling only at 3 blocks => 64 -> 32 -> 16 -> 8)
         self.features = nn.Sequential(
+            # 64x64
             InvertedResidualV3(c(16),  c(16), 3, 1, 1.0, False, False),
+
+            # 64 -> 32
             InvertedResidualV3(c(16),  c(24), 3, 2, 4.0, False, False),
+            # 32
             InvertedResidualV3(c(24),  c(24), 3, 1, 3.0, False, False),
+
+            # 32 -> 16
             InvertedResidualV3(c(24),  c(40), 5, 2, 3.0, True,  False),
+            # 16
             InvertedResidualV3(c(40),  c(40), 5, 1, 3.0, True,  False),
             InvertedResidualV3(c(40),  c(40), 5, 1, 3.0, True,  False),
+
+            # 16 -> 8
             InvertedResidualV3(c(40),  c(80), 3, 2, 6.0, False, True),
+            # 8
             InvertedResidualV3(c(80),  c(80), 3, 1, 2.5, False, True),
             InvertedResidualV3(c(80),  c(80), 3, 1, 2.3, False, True),
+
+            # 8
             InvertedResidualV3(c(80),  c(112), 3, 1, 6.0, True,  True),
             InvertedResidualV3(c(112), c(112), 3, 1, 6.0, True,  True),
-            InvertedResidualV3(c(112), c(160), 5, 2, 6.0, True,  True),
+
+            # Was 8 -> 4 with stride=2, now keep 8 by using stride=1
+            InvertedResidualV3(c(112), c(160), 5, 1, 6.0, True,  True),  # changed stride=2 -> 1
+            # 8
             InvertedResidualV3(c(160), c(160), 5, 1, 6.0, True,  True),
             InvertedResidualV3(c(160), c(160), 5, 1, 6.0, True,  True),
         )
 
-        # Head (scaled conv, fixed classifier dim like common MobileNet style)
+        # Head (kept as-is, global pool from 8x8 -> 1x1)
         head_in = c(160)
         head_mid = c(960)
 
@@ -129,21 +177,21 @@ class _MobileNetV3LargeBase(nn.Module):
             HSwish(),
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(head_mid, 1280, 1),
-            HSwish()
+            HSwish(),
         )
 
         self.classifier = nn.Linear(1280, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stem(x)
-        x = self.features(x)
-        x = self.head(x)
+        x = self.stem(x)       # 64x64 -> 64x64
+        x = self.features(x)   # 64 -> 32 -> 16 -> 8
+        x = self.head(x)       # 8x8 -> 1x1
         x = x.view(x.size(0), -1)
         return self.classifier(x)
 
 
 # ============================================================
-# Sizes (same “explicit class” style)
+# Sizes (explicit classes)
 # ============================================================
 
 class MobileNetV3TinyScratch(_MobileNetV3LargeBase):
@@ -163,7 +211,7 @@ class MobileNetV3BaseScratch(_MobileNetV3LargeBase):
 
 class MobileNetV3LargeScratch(_MobileNetV3LargeBase):
     """
-    Your original “Large” (width_mult=1.0)
+    “Large” (width_mult=1.0)
     """
     def __init__(self, num_classes: int = 6, in_channels: int = 3):
         super().__init__(num_classes=num_classes, in_channels=in_channels, width_mult=1.0)
@@ -196,3 +244,14 @@ def mobilenetv3_large_fer(*, num_classes: int, in_channels: int = 3, transfer: b
 
 def mobilenetv3_xlarge_fer(*, num_classes: int, in_channels: int = 3, transfer: bool = False, **_) -> nn.Module:
     return MobileNetV3XLargeScratch(num_classes=num_classes, in_channels=in_channels)
+
+
+# ============================================================
+# quick shape test
+# ============================================================
+if __name__ == "__main__":
+    m = MobileNetV3LargeScratch(num_classes=6, in_channels=3)
+    x = torch.randn(2, 3, 64, 64)
+    with torch.no_grad():
+        y = m(x)
+    print("out:", y.shape)  # [2, 6]
