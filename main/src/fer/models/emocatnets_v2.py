@@ -532,12 +532,7 @@ def emocatnetsv2_fer(
     )
 
 
-# ============================================================
-# Backward-compat aliases (OPTIONAL)
-# Remove if you don't want old names usable.
-# ============================================================
-EmoCatNetsV2NoResidual = EmoCatNetsV2
-emocatnets_v2nr_fer = emocatnetsv2_fer
+
 
 
 # ============================================================
