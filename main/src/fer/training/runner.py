@@ -297,6 +297,8 @@ def _validate_settings(s) -> None:
         raise ValueError("epochs must be > 0")
     if int(getattr(s, "bs")) <= 0:
         raise ValueError("bs must be > 0")
+    if int(getattr(s, "grad_accum", 1)) <= 0:
+        raise ValueError("grad_accum must be >= 1")
     if float(getattr(s, "lr")) <= 0:
         raise ValueError("lr must be > 0")
 
@@ -564,6 +566,9 @@ def _train_loop(
     epochs = int(getattr(settings, "epochs"))
     early_stop = int(getattr(settings, "early_stop", 0))
     grad_clip = float(getattr(settings, "grad_clip", 0.0))
+    grad_accum = int(getattr(settings, "grad_accum", 1))
+    if grad_accum < 1:
+        raise ValueError("grad_accum must be >= 1")
 
     # choose best metric
     metric_name = str(getattr(settings, "select_metric", "f1_macro")).strip()
@@ -607,6 +612,7 @@ def _train_loop(
                     mix_prob=mix_prob,
                     ema=ema,
                     scaler=scaler,  # <- important (reused)
+                    grad_accum=grad_accum,
                 )
             )
         else:
@@ -623,6 +629,7 @@ def _train_loop(
                 cutmix_alpha=cutmix_alpha,
                 mix_prob=mix_prob,
                 scaler=scaler,
+                grad_accum=grad_accum,
             )
 
         # -------- validate --------
@@ -771,6 +778,7 @@ def _train_one_epoch_basic(
     cutmix_alpha: float,
     mix_prob: float,
     scaler,
+    grad_accum: int,
 ) -> float:
     """
     Fallback train loop:
@@ -787,11 +795,12 @@ def _train_one_epoch_basic(
     total_loss = 0.0
     total_n = 0
 
-    for xb, yb in loader:
+    grad_accum = max(int(grad_accum), 1)
+    optimizer.zero_grad(set_to_none=True)
+
+    for step, (xb, yb) in enumerate(loader, start=1):
         xb = xb.to(device, non_blocking=True)
         yb = yb.to(device, non_blocking=True)
-
-        optimizer.zero_grad(set_to_none=True)
 
         # ----- batch augmentation: mixup/cutmix -----
         mixed = False
@@ -819,28 +828,34 @@ def _train_one_epoch_basic(
             if mixed:
                 if y_a is None or y_b is None:
                     raise RuntimeError("MixUp/CutMix set mixed=True but y_a/y_b is None.")
-                loss = _mixed_criterion_forward(criterion, logits, y_a, y_b, lam, extra)
+                loss_raw = _mixed_criterion_forward(criterion, logits, y_a, y_b, lam, extra)
             else:
-                loss = _criterion_forward(criterion, logits, yb, extra)
+                loss_raw = _criterion_forward(criterion, logits, yb, extra)
+
+        loss = loss_raw / float(grad_accum)
 
         if scaler is not None:
             scaler.scale(loss).backward()
-            if grad_clip and grad_clip > 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
-            scaler.step(optimizer)
-            scaler.update()
+            if (step % grad_accum == 0) or (step == len(loader)):
+                if grad_clip and grad_clip > 0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
         else:
             loss.backward()
-            if grad_clip and grad_clip > 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
-            optimizer.step()
+            if (step % grad_accum == 0) or (step == len(loader)):
+                if grad_clip and grad_clip > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
 
-        if ema is not None:
+        if ema is not None and ((step % grad_accum == 0) or (step == len(loader))):
             ema.update(model)
 
         bs = xb.size(0)
-        total_loss += float(loss.item()) * bs
+        total_loss += float(loss_raw.item()) * bs
         total_n += bs
 
     return total_loss / max(total_n, 1)
@@ -1007,6 +1022,7 @@ def _print_header(
     print("Hyperparameters")
     print(f"  epochs        : {getattr(settings, 'epochs')}")
     print(f"  bs            : {getattr(settings, 'bs')}")
+    print(f"  grad_accum    : {getattr(settings, 'grad_accum', 1)}")
     print(f"  lr            : {getattr(settings, 'lr')}")
     print(f"  min_lr        : {getattr(settings, 'min_lr', 1e-6)}")
     print(f"  weight_decay  : {getattr(settings, 'weight_decay', 1e-2)}")

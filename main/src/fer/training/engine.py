@@ -107,6 +107,7 @@ def train_one_epoch(
     mix_prob: float = 0.0,          # probability to apply mix augmentation
     ema: Optional[Any] = None,      # EMA object with update(model)
     scaler: Optional[Any] = None,   # pass from runner to avoid recreating every epoch
+    grad_accum: int = 1,
 ) -> float:
     model.train()
 
@@ -114,12 +115,12 @@ def train_one_epoch(
     scaler = scaler if scaler is not None else _make_grad_scaler(use_amp)
 
     total_loss, total_n = 0.0, 0
+    grad_accum = max(int(grad_accum), 1)
+    optimizer.zero_grad(set_to_none=True)
 
-    for xb, yb in tqdm(loader, desc="train", leave=False):
+    for step, (xb, yb) in enumerate(tqdm(loader, desc="train", leave=False), start=1):
         xb = xb.to(device, non_blocking=True)
         yb = yb.to(device, non_blocking=True)
-
-        optimizer.zero_grad(set_to_none=True)
 
         # ----- batch augmentation: mixup/cutmix -----
         use_mix = (mix_prob > 0.0) and (torch.rand(1, device=device).item() < float(mix_prob))
@@ -145,25 +146,29 @@ def train_one_epoch(
         with _autocast_ctx(device, use_amp):
             logits = model(xb)
             if mixed:
-                loss = mixed_criterion(criterion, logits, y_a, y_b, float(lam))
+                loss_raw = mixed_criterion(criterion, logits, y_a, y_b, float(lam))
             else:
-                loss = criterion(logits, yb)
+                loss_raw = criterion(logits, yb)
+
+        loss = loss_raw / float(grad_accum)
 
         # backward + step
         scaler.scale(loss).backward()
 
-        if grad_clip and grad_clip > 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip))
+        if (step % grad_accum == 0) or (step == len(loader)):
+            if grad_clip and grad_clip > 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=float(grad_clip))
 
-        scaler.step(optimizer)
-        scaler.update()
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
 
-        if ema is not None:
+        if ema is not None and ((step % grad_accum == 0) or (step == len(loader))):
             ema.update(model)
 
         bs = xb.size(0)
-        total_loss += float(loss.item()) * bs
+        total_loss += float(loss_raw.item()) * bs
         total_n += bs
 
     return float(total_loss / max(total_n, 1))

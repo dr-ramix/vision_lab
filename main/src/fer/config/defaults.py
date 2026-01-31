@@ -41,6 +41,7 @@ class TrainSettings:
     # ==================================================
     epochs: int = 30
     bs: int = 64
+    grad_accum: int = 2                  # gradient accumulation steps
     seed: int = 42
 
     # ==================================================

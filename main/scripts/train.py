@@ -98,6 +98,9 @@ def _validate_settings(s: TrainSettings) -> None:
     if s.bs <= 0:
         raise ValueError("bs (batch size) must be > 0")
 
+    if int(getattr(s, "grad_accum", 1)) <= 0:
+        raise ValueError("grad_accum must be >= 1")
+
     if s.lr <= 0:
         raise ValueError("lr must be > 0")
 
@@ -121,7 +124,7 @@ def _print_effective_config(settings: TrainSettings) -> None:
     keys = [
         "model", "run_tag",
         "dataloader", "images_root", "output_root",
-        "epochs", "bs", "lr", "optimizer", "scheduler",
+        "epochs", "bs", "grad_accum", "lr", "optimizer", "scheduler",
         "amp", "grad_clip", "early_stop",
         "class_weight", "label_smoothing",
         "loss", "emonext_lambda",
