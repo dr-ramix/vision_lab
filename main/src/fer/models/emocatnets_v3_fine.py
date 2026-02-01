@@ -1,7 +1,7 @@
 # fer/models/emocatnets_v3_fine.py
 from __future__ import annotations
 
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import torch
 import torch.nn as nn
 import timm
@@ -22,11 +22,15 @@ def _strip_module_prefix(sd: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]
 
 def _remap_block_names(dst_key: str) -> str:
     """
-    timm ConvNeXt block names -> your ConvNextBlock names
+    timm ConvNeXt(/V2) block names -> your ConvNextBlockV2 names
       dwconv  -> depthwise_conv
       norm    -> layer_norm
       pwconv1 -> pointwise_conv1
       pwconv2 -> pointwise_conv2
+
+    Notes:
+      - GRN keys (".grn.gamma", ".grn.beta") already match your GRN module naming.
+      - LayerScale param is usually called ".gamma" in both.
     """
     dst_key = dst_key.replace(".dwconv.", ".depthwise_conv.")
     dst_key = dst_key.replace(".norm.", ".layer_norm.")
@@ -38,12 +42,12 @@ def _remap_block_names(dst_key: str) -> str:
 @torch.no_grad()
 def transfer_convnext_into_emocatnetsv3(
     model: nn.Module,
-    convnext_name: str = "convnext_tiny",
+    convnext_name: str = "convnextv2_tiny",
     pretrained: bool = True,
     verbose: bool = True,
 ) -> Dict[str, int]:
     """
-    Load timm ConvNeXt pretrained weights into compatible pieces of EmoCatNetsV3:
+    Load timm ConvNeXt(/ConvNeXtV2) pretrained weights into compatible pieces of EmoCatNetsV3:
       - stage1 <- timm stages.0
       - stage2 <- timm stages.1
       - stage3 <- timm stages.2
@@ -51,14 +55,18 @@ def transfer_convnext_into_emocatnetsv3(
       - down2  <- timm downsample_layers.2
 
     Skips:
-      - stem / stage4 / head / norm
-      - all non-ConvNeXt modules (stn, cbam*, proj_16, transformer)
+      - stem / stage4 / head / final norm
+      - all non-ConvNeXt modules (stn, cbam*, transformer, etc.)
+
+    Works with both:
+      - convnext_*     (v1, no GRN)  -> loads DW/LN/PW + gamma where possible
+      - convnextv2_*   (v2, GRN)     -> loads DW/LN/PW + GRN + gamma where possible
     """
     src = timm.create_model(convnext_name, pretrained=pretrained).eval()
     src_sd = _strip_module_prefix(src.state_dict())
     dst_sd = model.state_dict()
 
-    # Detect whether your model uses down1/down2 naming (it does in your code)
+    # Ensure expected prefixes exist in the destination model
     required = ["stage1.", "stage2.", "stage3.", "down1.", "down2."]
     missing_prefixes = [p for p in required if not any(k.startswith(p) for k in dst_sd.keys())]
     if missing_prefixes:
@@ -74,7 +82,7 @@ def transfer_convnext_into_emocatnetsv3(
     updates: Dict[str, torch.Tensor] = {}
 
     for k_src, v_src in src_sd.items():
-        # Skip convnext stem, stage4, head/norm
+        # Skip convnext stem (downsample_layers.0), stage4, head/norm
         if k_src.startswith("downsample_layers.0."):
             continue
         if k_src.startswith("stages.3."):
@@ -82,7 +90,7 @@ def transfer_convnext_into_emocatnetsv3(
         if k_src.startswith("head.") or k_src.startswith("norm."):
             continue
 
-        k_dst = None
+        k_dst: Optional[str] = None
 
         # downsample_layers.1 -> down1
         if k_src.startswith("downsample_layers.1."):
@@ -93,21 +101,18 @@ def transfer_convnext_into_emocatnetsv3(
         # stages.0 -> stage1
         elif k_src.startswith("stages.0."):
             tail = k_src[len("stages.0."):]
-            tail = tail.replace("blocks.", "")  # timm uses stages.i.blocks.j...
-            k_dst = "stage1." + tail
-            k_dst = _remap_block_names(k_dst)
+            tail = tail.replace("blocks.", "")  # timm uses stages.i.blocks.j.*
+            k_dst = _remap_block_names("stage1." + tail)
         # stages.1 -> stage2
         elif k_src.startswith("stages.1."):
             tail = k_src[len("stages.1."):]
             tail = tail.replace("blocks.", "")
-            k_dst = "stage2." + tail
-            k_dst = _remap_block_names(k_dst)
+            k_dst = _remap_block_names("stage2." + tail)
         # stages.2 -> stage3
         elif k_src.startswith("stages.2."):
             tail = k_src[len("stages.2."):]
             tail = tail.replace("blocks.", "")
-            k_dst = "stage3." + tail
-            k_dst = _remap_block_names(k_dst)
+            k_dst = _remap_block_names("stage3." + tail)
         else:
             continue
 
@@ -130,8 +135,7 @@ def transfer_convnext_into_emocatnetsv3(
             f"[emocatnetsv3 transfer] convnext='{convnext_name}' pretrained={pretrained} | "
             f"copied={copied} skipped_missing={skipped_missing} skipped_shape={skipped_shape}"
         )
-        # sanity sample
-        for s in list(updates.keys())[:8]:
+        for s in list(updates.keys())[:10]:
             print("  loaded:", s)
 
     return dict(copied=copied, skipped_missing=skipped_missing, skipped_shape=skipped_shape)
@@ -141,11 +145,13 @@ def transfer_convnext_into_emocatnetsv3(
 # Factory (registry-friendly)
 # ------------------------------------------------------------
 
-_SIZE_TO_CONVNEXT = {
-    "tiny":  "convnext_tiny",
-    "small": "convnext_small",
-    "base":  "convnext_base",
-    "large": "convnext_large",
+# IMPORTANT:
+# Your blocks are ConvNeXtV2-style (GRN), so convnextv2_* is the best default match.
+_SIZE_TO_CONVNEXT: Dict[str, str] = {
+    "tiny":  "convnextv2_tiny",
+    "small": "convnextv2_small",
+    "base":  "convnextv2_base",
+    "large": "convnextv2_large",
 }
 
 
@@ -158,13 +164,14 @@ def emocatnetsv3fine_fer(
     convnext_name: Optional[str] = None,
     convnext_pretrained: bool = True,
     verbose: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> EmoCatNetsV3:
     """
-    Same signature style as your other factories:
-      factory(num_classes, in_channels, transfer) -> nn.Module
+    Factory for fine-tuning.
 
-    transfer=True: loads ConvNeXt pretrained into stage1-3 + down1-2
+    transfer=True:
+      loads ConvNeXt(/V2) pretrained weights into:
+        stage1-3 + down1-2
     """
     size = size.lower()
     if size not in EMOCATNETS_V3_SIZES:
@@ -209,7 +216,7 @@ def make_emocatnetsv3_param_groups(
 ) -> list[dict]:
     """
     backbone (loaded): stage1-3 + down1-2
-    new modules: stn, stem, cbam*, proj_16, stage4, head
+    rest (new or not loaded): stn, stem, cbam*, down3, stage4, head, etc.
     """
     backbone, rest = [], []
     for n, p in model.named_parameters():
@@ -220,7 +227,7 @@ def make_emocatnetsv3_param_groups(
         else:
             rest.append(p)
 
-    groups = []
+    groups: list[dict] = []
     if backbone:
         groups.append({"params": backbone, "lr": base_lr * backbone_lr_mult})
     if rest:

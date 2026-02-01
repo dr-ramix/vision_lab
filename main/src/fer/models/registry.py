@@ -24,7 +24,7 @@ from fer.models.emocatnets_v2 import emocatnetsv2_fer
 from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
-from fer.models.emocatnets_v3 import emocatnets_v3_fer
+from fer.models.emocatnets_v3 import emocatnetsv3_fer
 from fer.models.emocatnets_v2_fine import emocatnetsv2_fine_fer
 from fer.models.emocatnets_v2_one_head import emocatnetv2onehead_fer
 from fer.models.emocatnets_v3_fine import emocatnetsv3fine_fer
@@ -38,9 +38,8 @@ from fer.models.convnext_fer_fine import convnextfer_v2_fine
 
 from fer.models.coatnext import coatnext_fer
 
-from fer.models.cnn_resnet50_fine import resnet50fine_fer
-from fer.models.cnn_resenet101_fine import resnet101fine_fer
-from fer.models.convnext_fer_fine import convnextfer_v2_fine
+
+
 
 
 # ------------------------------------------------------------
@@ -554,7 +553,7 @@ register_model(
 
 register_model(
     "emocatnetsv3_tiny",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
         size="tiny",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -563,7 +562,7 @@ register_model(
 
 register_model(
     "emocatnetsv3_small",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
         size="small",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -572,7 +571,7 @@ register_model(
 
 register_model(
     "emocatnetsv3_base",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
         size="base",
         num_classes=num_classes,
         in_channels=in_channels,
@@ -581,7 +580,7 @@ register_model(
 
 register_model(
     "emocatnetsv3_large",
-    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v3_fer(
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
         size="large",
         num_classes=num_classes,
         in_channels=in_channels,
