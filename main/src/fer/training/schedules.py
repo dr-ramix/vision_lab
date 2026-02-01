@@ -6,12 +6,12 @@ from typing import Any, Dict, List, Optional
 
 class WarmupThenCosine:
     """
-    Epoch-based schedule:
-      - Linear warmup from 0 -> base_lr over `warmup_epochs`
-      - Cosine decay from base_lr -> min_lr over remaining epochs
+    Step-based schedule:
+      - Linear warmup from 0 -> base_lr over `warmup_updates`
+      - Cosine decay from base_lr -> min_lr over remaining updates
 
     Notes:
-      - Call .step() once per epoch (typically at end of epoch).
+      - Call .step() once per optimizer update.
       - Supports checkpoint resume via state_dict/load_state_dict.
       - Optionally preserves param-group LR ratios if you pass base_lrs.
     """
@@ -21,8 +21,10 @@ class WarmupThenCosine:
         optimizer,
         base_lr: float,
         min_lr: float,
-        warmup_epochs: int,
-        total_epochs: int,
+        warmup_updates: Optional[int] = None,
+        total_updates: Optional[int] = None,
+        warmup_epochs: Optional[int] = None,
+        total_epochs: Optional[int] = None,
         *,
         base_lrs: Optional[List[float]] = None,
         last_epoch: int = 0,
@@ -30,11 +32,17 @@ class WarmupThenCosine:
         self.opt = optimizer
         self.base_lr = float(base_lr)
         self.min_lr = float(min_lr)
-        self.warmup = max(int(warmup_epochs), 0)
-        self.total = max(int(total_epochs), 1)
+        if warmup_updates is None or total_updates is None:
+            if warmup_epochs is None or total_epochs is None:
+                raise ValueError("warmup_updates/total_updates required (or warmup_epochs/total_epochs for legacy).")
+            warmup_updates = int(warmup_epochs)
+            total_updates = int(total_epochs)
 
-        # Epoch counter (1-based in step, but we store as int >=0)
-        self.epoch = int(last_epoch)
+        self.warmup = max(int(warmup_updates), 0)
+        self.total = max(int(total_updates), 1)
+
+        # Update counter (1-based in step, but we store as int >=0)
+        self.step_idx = int(last_epoch)
 
         # If base_lrs not given, assume all groups share base_lr
         if base_lrs is None:
@@ -45,22 +53,22 @@ class WarmupThenCosine:
             self.base_lrs = [float(x) for x in base_lrs]
 
         # Apply current lr immediately if resuming
-        if self.epoch > 0:
-            self._apply_lr(self._lr_at_epoch(self.epoch))
+        if self.step_idx > 0:
+            self._apply_lr(self._lr_at_step(self.step_idx))
 
-    def _lr_at_epoch(self, e: int) -> float:
+    def _lr_at_step(self, s: int) -> float:
         """
-        Returns the scalar LR multiplier schedule for epoch e (1..total).
+        Returns the scalar LR schedule for update step s (1..total).
         """
-        e = max(int(e), 1)
+        s = max(int(s), 1)
 
-        if self.warmup > 0 and e <= self.warmup:
+        if self.warmup > 0 and s <= self.warmup:
             # linear warmup: 0 -> base
-            return self.base_lr * (e / self.warmup)
+            return self.base_lr * (s / self.warmup)
 
         # cosine phase
         denom = max(1, (self.total - self.warmup))
-        t = (e - self.warmup) / denom
+        t = (s - self.warmup) / denom
         # clamp to [0,1]
         t = max(0.0, min(1.0, float(t)))
 
@@ -80,21 +88,21 @@ class WarmupThenCosine:
 
     def step(self) -> float:
         """
-        Advance by 1 epoch and set optimizer LR.
+        Advance by 1 update step and set optimizer LR.
         Returns the new LR of group 0.
         """
-        self.epoch += 1
-        lr = self._lr_at_epoch(self.epoch)
+        self.step_idx += 1
+        lr = self._lr_at_step(self.step_idx)
         self._apply_lr(lr)
         return self.lr
 
     def set_epoch(self, epoch: int) -> None:
         """
-        Set epoch counter (useful for resume) and apply LR accordingly.
+        Set update-step counter (useful for resume) and apply LR accordingly.
         """
-        self.epoch = max(int(epoch), 0)
-        if self.epoch > 0:
-            lr = self._lr_at_epoch(self.epoch)
+        self.step_idx = max(int(epoch), 0)
+        if self.step_idx > 0:
+            lr = self._lr_at_step(self.step_idx)
             self._apply_lr(lr)
 
     @property
@@ -107,7 +115,7 @@ class WarmupThenCosine:
             "min_lr": self.min_lr,
             "warmup": self.warmup,
             "total": self.total,
-            "epoch": self.epoch,
+            "step": self.step_idx,
             "base_lrs": list(self.base_lrs),
         }
 
@@ -116,10 +124,10 @@ class WarmupThenCosine:
         self.min_lr = float(state["min_lr"])
         self.warmup = int(state["warmup"])
         self.total = int(state["total"])
-        self.epoch = int(state["epoch"])
+        self.step_idx = int(state.get("step", state.get("epoch", 0)))
         self.base_lrs = [float(x) for x in state.get("base_lrs", self.base_lrs)]
         
-        # Apply LR at loaded epoch
-        if self.epoch > 0:
-            lr = self._lr_at_epoch(self.epoch)
+        # Apply LR at loaded step
+        if self.step_idx > 0:
+            lr = self._lr_at_step(self.step_idx)
             self._apply_lr(lr)

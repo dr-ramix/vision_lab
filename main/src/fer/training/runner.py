@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -129,7 +130,7 @@ def run_training(settings) -> Path:
         write_json(run_dir / "metrics" / "class_weights.json", {"weights": weights_out})
 
     optimizer = _build_optimizer(settings, model)
-    scheduler = _build_scheduler(settings, optimizer)
+    scheduler = _build_scheduler(settings, optimizer, loaders["train"])
     ema = _maybe_build_ema(settings, model)
 
     # mixup/cutmix
@@ -488,16 +489,19 @@ def _build_optimizer(settings, model: nn.Module) -> torch.optim.Optimizer:
     return opt_map[name]()
 
 
-def _build_scheduler(settings, optimizer: torch.optim.Optimizer):
+def _build_scheduler(settings, optimizer: torch.optim.Optimizer, train_loader):
     name = str(getattr(settings, "scheduler", "cosine")).strip().lower()
     if name in {"none", "off", ""}:
         return None
 
     epochs = int(getattr(settings, "epochs"))
+    grad_accum = max(int(getattr(settings, "grad_accum", 1)), 1)
+    updates_per_epoch = max(1, math.ceil(len(train_loader) / grad_accum))
+    total_updates = max(1, updates_per_epoch * epochs)
 
     if name == "cosine":
         min_lr = float(getattr(settings, "min_lr", 1e-6))
-        return CosineAnnealingLR(optimizer, T_max=max(epochs, 1), eta_min=min_lr)
+        return CosineAnnealingLR(optimizer, T_max=total_updates, eta_min=min_lr)
 
     if name == "warmup_cosine":
         if WarmupThenCosine is None:
@@ -505,12 +509,13 @@ def _build_scheduler(settings, optimizer: torch.optim.Optimizer):
         warm = int(getattr(settings, "warmup_epochs", 3))
         min_lr = float(getattr(settings, "min_lr", 1e-6))
         base_lr = float(getattr(settings, "lr"))
+        warmup_updates = min(total_updates, max(0, updates_per_epoch * warm))
         return WarmupThenCosine(
             optimizer=optimizer,
             base_lr=base_lr,
             min_lr=min_lr,
-            warmup_epochs=warm,
-            total_epochs=epochs,
+            warmup_updates=warmup_updates,
+            total_updates=total_updates,
         )
 
     if name == "step":
@@ -613,6 +618,7 @@ def _train_loop(
                     ema=ema,
                     scaler=scaler,  # <- important (reused)
                     grad_accum=grad_accum,
+                    scheduler=scheduler,
                 )
             )
         else:
@@ -630,6 +636,7 @@ def _train_loop(
                 mix_prob=mix_prob,
                 scaler=scaler,
                 grad_accum=grad_accum,
+                scheduler=scheduler,
             )
 
         # -------- validate --------
@@ -693,15 +700,9 @@ def _train_loop(
             if early_stop > 0:
                 patience_left -= 1
 
-        # scheduler
-        if scheduler is not None:
-            if scheduler.__class__.__name__ == "WarmupThenCosine":
-                scheduler.step()
-                lr_now = float(getattr(scheduler, "lr", lr_now))
-            elif isinstance(scheduler, ReduceLROnPlateau):
-                scheduler.step(val_score)
-            else:
-                scheduler.step()
+        # scheduler (ReduceLROnPlateau only; step-based schedulers update during optimizer steps)
+        if isinstance(scheduler, ReduceLROnPlateau):
+            scheduler.step(val_score)
 
         row = {
             "epoch": epoch,
@@ -779,6 +780,7 @@ def _train_one_epoch_basic(
     mix_prob: float,
     scaler,
     grad_accum: int,
+    scheduler=None,
 ) -> float:
     """
     Fallback train loop:
@@ -843,6 +845,8 @@ def _train_one_epoch_basic(
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
+                if scheduler is not None and not isinstance(scheduler, ReduceLROnPlateau):
+                    scheduler.step()
         else:
             loss.backward()
             if (step % grad_accum == 0) or (step == len(loader)):
@@ -850,6 +854,8 @@ def _train_one_epoch_basic(
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
+                if scheduler is not None and not isinstance(scheduler, ReduceLROnPlateau):
+                    scheduler.step()
 
         if ema is not None and ((step % grad_accum == 0) or (step == len(loader))):
             ema.update(model)

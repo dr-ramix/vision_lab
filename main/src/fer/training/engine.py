@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional, List
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
 from fer.metrics.classification import compute_classification_metrics
@@ -108,6 +109,7 @@ def train_one_epoch(
     ema: Optional[Any] = None,      # EMA object with update(model)
     scaler: Optional[Any] = None,   # pass from runner to avoid recreating every epoch
     grad_accum: int = 1,
+    scheduler=None,
 ) -> float:
     model.train()
 
@@ -163,6 +165,8 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             optimizer.zero_grad(set_to_none=True)
+            if scheduler is not None and not isinstance(scheduler, ReduceLROnPlateau):
+                scheduler.step()
 
         if ema is not None and ((step % grad_accum == 0) or (step == len(loader))):
             ema.update(model)
