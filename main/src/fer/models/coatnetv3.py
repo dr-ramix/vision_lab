@@ -6,42 +6,42 @@ from einops import rearrange
 from einops.layers.torch import Rearrange 
 
 configs = {
-    'coatnetv2-0': {
+    'coatnetv3-0': {
         'num_blocks': [2, 2, 3, 5, 2],
         'num_channels': [64, 96, 192, 384, 768],
         'expand_ratio': [4, 4, 4, 4, 4],
         'n_head': 8,
         'block_types': ['C', 'C', 'C', 'T']
     },
-    'coatnetv2-1': {
+    'coatnetv3-1': {
         'num_blocks': [2, 2, 6, 14, 2],
         'num_channels': [64, 96, 192, 384, 768],
         'expand_ratio': [4, 4, 4, 4, 4],
         'n_head': 8,
         'block_types': ['C', 'C', 'C', 'T']
     },
-    'coatnetv2-2': {
+    'coatnetv3-2': {
         'num_blocks': [2, 2, 6, 14, 2],
         'num_channels': [128, 128, 256, 512, 1024],
         'expand_ratio': [4, 4, 4, 4, 4],
         'n_head': 8,
         'block_types': ['C', 'C', 'C', 'T']
     },
-    'coatnetv2-3': {
+    'coatnetv3-3': {
         'num_blocks': [2, 2, 6, 14, 2],
         'num_channels': [192, 192, 384, 768, 1536],
         'expand_ratio': [4, 4, 4, 4, 4],
         'n_head': 8,
         'block_types': ['C', 'C', 'C', 'T']
     },
-    'coatnetv2-4': {
+    'coatnetv3-4': {
         'num_blocks': [2, 2, 12, 28, 2],
         'num_channels': [192, 192, 384, 768, 1536],
         'expand_ratio': [4, 4, 4, 4, 4],
         'n_head': 8,
         'block_types': ['C', 'C', 'C', 'T']
     },
-    'coatnetv2-5': {
+    'coatnetv3-5': {
         'num_blocks': [2, 2, 12, 28, 2],
         'num_channels': [192, 256, 512, 1280, 2048],
         'expand_ratio': [4, 4, 4, 4, 4],
@@ -202,7 +202,7 @@ class Attention(nn.Module):
         return out
 
 class Transformer(nn.Module):
-    def __init__(self, inp, oup, image_size, heads=8, dim_head=64, downsample=False):
+    def __init__(self, inp, oup, image_size, heads=8, downsample=False):
         super().__init__()
         self.downsample = downsample
 
@@ -210,43 +210,32 @@ class Transformer(nn.Module):
             self.pool = nn.MaxPool2d(2, 2)
             self.proj = nn.Conv2d(inp, oup, 1, bias=False)
 
-        attn_dim = oup if downsample else inp
+        dim = oup if downsample else inp
 
-        self.attn = nn.Sequential(
-            PreNorm(
-                attn_dim,
-                Attention(
-                    inp=attn_dim,
-                    oup=attn_dim,
-                    image_size=image_size,
-                    heads=heads,
-                    dim_head=dim_head
-                )
-            ),
-            PreNorm(
-                attn_dim,
-                FeedForward(attn_dim, hidden_dim=attn_dim * 4)
-            )
-        )
+        self.attn = PreNorm(dim, Attention(inp=dim, oup=dim, image_size=image_size, heads=heads))
+        self.ff = PreNorm(dim, FeedForward(dim, dim * 4))
 
     def forward(self, x):
         if self.downsample:
             x = self.proj(self.pool(x))
+
         b, c, h, w = x.shape
         x = rearrange(x, 'b c h w -> b (h w) c')
+
         x = x + self.attn(x)
+        x = x + self.ff(x)
+
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         return x
-
+    
 class SimpleStem(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+            nn.GELU()
         )
-
     def forward(self, x):
         return self.stem(x)
 
@@ -256,34 +245,24 @@ blocks = {
     'T': Transformer,
 }
 
-class CoAtNetV2(nn.Module):
-    def __init__(self, inp_h, inp_w, in_channels, config='coatnetv2-0', num_classes=None, head_act_fn='mish', head_dropout=0.1):
+class CoAtNetV3(nn.Module):
+    def __init__(self, inp_h, inp_w, in_channels, config='coatnetv3-0', num_classes=None, head_act_fn='mish', head_dropout=0.1):
         super().__init__()
         self.config = configs[config]
         block_types = self.config['block_types']
         self.s0 = self._make_stem(in_channels)
-        self.s1 = self._make_block(block_types[0],
-                                   inp_h, inp_w,
-                                   self.config['num_channels'][0],
-                                   self.config['num_channels'][1],
-                                   self.config['num_blocks'][1],
-                                   self.config['expand_ratio'][0],
-                                   downsample_first=True)
-        self.s2 = self._make_block(block_types[1], inp_h >> 1, inp_w >> 1,
-                                   self.config['num_channels'][1],
-                                   self.config['num_channels'][2],
-                                   self.config['num_blocks'][2],
-                                   self.config['expand_ratio'][1])
-        self.s3 = self._make_block(block_types[2], inp_h >> 2, inp_w >> 2,
-                                   self.config['num_channels'][2],
-                                   self.config['num_channels'][3],
-                                   self.config['num_blocks'][3],
-                                   self.config['expand_ratio'][2])
+        self.s1 = self._make_block(block_types[0], inp_h >> 1, inp_w >> 1,
+                                   self.config['num_channels'][0], self.config['num_channels'][1],
+                                   self.config['num_blocks'][0], self.config['expand_ratio'][0], downsample_first=True)
+        self.s2 = self._make_block(block_types[1], inp_h >> 2, inp_w >> 2,
+                                   self.config['num_channels'][1], self.config['num_channels'][2],
+                                   self.config['num_blocks'][1], self.config['expand_ratio'][1], downsample_first=True)
+        self.s3 = self._make_block(block_types[2], inp_h >> 3, inp_w >> 3,
+                                   self.config['num_channels'][2], self.config['num_channels'][3],
+                                   self.config['num_blocks'][2], self.config['expand_ratio'][2], downsample_first=False)
         self.s4 = self._make_block(block_types[3], inp_h >> 3, inp_w >> 3,
-                                   self.config['num_channels'][3],
-                                   self.config['num_channels'][4],
-                                   self.config['num_blocks'][4],
-                                   self.config['expand_ratio'][3])
+                                   self.config['num_channels'][3], self.config['num_channels'][4],
+                                   self.config['num_blocks'][3], self.config['expand_ratio'][3], downsample_first=False)
         self.include_head = num_classes is not None
         if self.include_head:
             if isinstance(num_classes, int):
@@ -354,8 +333,8 @@ if __name__ == '__main__':
     from fvcore.nn import FlopCountAnalysis
 
     image_size = (3, 64, 64)
-    config=f'coatnetv2-0'
-    coatnet = CoAtNetV2(inp_h=64,inp_w=64,in_channels=3,config='coatnetv2-0',num_classes=6)
+    config=f'coatnetv3-0'
+    coatnet = CoAtNetV3(inp_h=64,inp_w=64,in_channels=3,config='coatnetv3-0',num_classes=6)
     coatnet.to('cuda:0')
     coatnet.eval()
     random_image = torch.randint(0, 256, size=(1, *image_size)).float() / 255
