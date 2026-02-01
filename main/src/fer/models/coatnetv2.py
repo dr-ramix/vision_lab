@@ -143,7 +143,7 @@ class MBConv(nn.Module):
 
     def forward(self, x):
         res = self.proj(x) if self.use_proj else x
-        return res + self.conv(x)
+        return F.gelu(res + self.conv(x))
 
 class Attention(nn.Module):
     def __init__(self, inp, oup, image_size, heads=8, dim_head=32, dropout=0.):
@@ -212,7 +212,7 @@ class Transformer(nn.Module):
 
         dim = oup if downsample else inp
 
-        self.attn = PreNorm(dim, Attention(dim, heads=heads))
+        self.attn = PreNorm(dim, Attention(inp=dim, oup=dim, image_size=image_size, heads=heads))
         self.ff = PreNorm(dim, FeedForward(dim, dim * 4))
 
     def forward(self, x):
