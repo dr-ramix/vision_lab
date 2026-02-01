@@ -1,6 +1,6 @@
 """
 EmoCatNetV2OneHead (64x64 FER)
-- NO residual STN, NO residual stem (plain STN optional + plain stem)
+- NO residual STN, NO residual stem (plain STN optional + stem)
 - C-C-C-T with 64 -> 32 -> 16 -> 8
 - CBAM after each stage
 - Transformer at 8x8 tokens (64 tokens) with:
@@ -291,11 +291,11 @@ class RelativeTransformerBlockV2(nn.Module):
 
 
 # ============================================================
-# Plain stem (NOT residual), NO downsampling: 64 -> 64
+# Stem (NOT residual), NO downsampling: 64 -> 64
 # ============================================================
 
-class PlainStem(nn.Module):
-    """Plain stem: Conv3x3(s1) -> LN(ch_first)."""
+class Stem(nn.Module):
+    """Stem: Conv3x3(s1) -> LN(ch_first)."""
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
@@ -398,7 +398,7 @@ class EmoCatNetV2OneHead(nn.Module):
 
         self.use_stn = use_stn
         self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden) if use_stn else nn.Identity()
-        self.stem = PlainStem(in_channels=in_channels, out_channels=d0)
+        self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
         self.down1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),

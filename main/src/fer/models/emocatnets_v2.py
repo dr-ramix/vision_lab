@@ -1,5 +1,5 @@
 """
-EmoCatNets-v2 (64x64 FER) — plain STN + plain stem (NO residual STN, NO residual stem)
+EmoCatNets-v2 (64x64 FER) — plain STN + stem (NO residual STN, NO residual stem)
 
 This is the "main v2" you want to register as `emocatnetsv2`:
 """
@@ -283,11 +283,11 @@ class RelativeTransformerBlockV2(nn.Module):
 
 
 # ============================================================
-# Plain stem (NOT residual), NO downsampling: 64 -> 64
+# Stem (NOT residual), NO downsampling: 64 -> 64
 # ============================================================
 
-class PlainStem(nn.Module):
-    """Plain stem: Conv3x3(s1) -> LN(ch_first)."""
+class Stem(nn.Module):
+    """Stem: Conv3x3(s1) -> LN(ch_first)."""
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
@@ -353,13 +353,13 @@ EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
 
 
 # ============================================================
-# EmoCatNets-v2 Model (RENAMED CLASS)
+# EmoCatNets-v2 Model
 # ============================================================
 
 class EmoCatNetsV2(nn.Module):
     """
     EmoCatNets-v2 (plain):
-      (optional) plain STN -> plain stem(64->64) -> stage1(C@64)
+      (optional) plain STN -> stem(64->64) -> stage1(C@64)
       -> down1(64->32) -> stage2(C@32)
       -> down2(32->16) -> stage3(C@16) [save feat16]
       -> down3(16->8)  -> stage4(T@8 tokens) [save feat8]
@@ -390,7 +390,7 @@ class EmoCatNetsV2(nn.Module):
         self.use_stn = use_stn
         self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden) if use_stn else nn.Identity()
 
-        self.stem = PlainStem(in_channels=in_channels, out_channels=d0)
+        self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
         self.down1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
@@ -492,7 +492,7 @@ class EmoCatNetsV2(nn.Module):
 
 
 # ============================================================
-# Factory (RENAMED)
+# Factory
 # ============================================================
 
 def emocatnetsv2_fer(
@@ -530,9 +530,6 @@ def emocatnetsv2_fer(
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,
         proj_dropout=cfg.proj_dropout if proj_dropout is None else proj_dropout,
     )
-
-
-
 
 
 # ============================================================
