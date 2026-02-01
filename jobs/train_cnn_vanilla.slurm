@@ -1,4 +1,3 @@
-
 #!/bin/bash
 #SBATCH --job-name=cnn_vanilla
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
