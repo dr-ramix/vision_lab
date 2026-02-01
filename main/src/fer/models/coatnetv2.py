@@ -200,9 +200,9 @@ class Attention(nn.Module):
         out = rearrange(out, 'b h n d -> b n (h d)')
         out = self.to_out(out)
         return out
-
+    
 class Transformer(nn.Module):
-    def __init__(self, inp, oup, image_size, heads=8, dim_head=64, downsample=False):
+    def __init__(self, inp, oup, image_size, heads=8, downsample=False):
         super().__init__()
         self.downsample = downsample
 
@@ -210,31 +210,21 @@ class Transformer(nn.Module):
             self.pool = nn.MaxPool2d(2, 2)
             self.proj = nn.Conv2d(inp, oup, 1, bias=False)
 
-        attn_dim = oup if downsample else inp
+        dim = oup if downsample else inp
 
-        self.attn = nn.Sequential(
-            PreNorm(
-                attn_dim,
-                Attention(
-                    inp=attn_dim,
-                    oup=attn_dim,
-                    image_size=image_size,
-                    heads=heads,
-                    dim_head=dim_head
-                )
-            ),
-            PreNorm(
-                attn_dim,
-                FeedForward(attn_dim, hidden_dim=attn_dim * 4)
-            )
-        )
+        self.attn = PreNorm(dim, Attention(dim, heads=heads))
+        self.ff = PreNorm(dim, FeedForward(dim, dim * 4))
 
     def forward(self, x):
         if self.downsample:
             x = self.proj(self.pool(x))
+
         b, c, h, w = x.shape
         x = rearrange(x, 'b c h w -> b (h w) c')
+
         x = x + self.attn(x)
+        x = x + self.ff(x)
+
         x = rearrange(x, 'b (h w) c -> b c h w', h=h, w=w)
         return x
 
