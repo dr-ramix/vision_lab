@@ -330,10 +330,38 @@ class EmoCatNetV2K5Config:
 
 
 EMOCATNETS_V2_K5_SIZES: Dict[str, EmoCatNetV2K5Config] = {
-    "tiny":  EmoCatNetV2K5Config(depths=(2, 2,  6, 2), dims=( 96, 192, 384,  512), drop_path_rate=0.12, num_heads=8),
-    "small": EmoCatNetV2K5Config(depths=(3, 3,  9, 2), dims=( 96, 192, 384,  640), drop_path_rate=0.15, num_heads=8),
-    "base":  EmoCatNetV2K5Config(depths=(3, 3, 12, 3), dims=(128, 256, 512,  768), drop_path_rate=0.20, num_heads=8),
-    "large": EmoCatNetV2K5Config(depths=(3, 3, 18, 3), dims=(192, 384, 768, 1024), drop_path_rate=0.25, num_heads=8),
+    "tiny":  EmoCatNetV2K5Config(
+        depths=(2, 2,  6, 2),
+        dims=( 96, 192, 384,  512),
+        drop_path_rate=0.10,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.04,
+    ),
+    "small": EmoCatNetV2K5Config(
+        depths=(3, 3,  9, 2),
+        dims=( 96, 192, 384,  640),
+        drop_path_rate=0.15,
+        num_heads=8,
+        attn_dropout=0.03,
+        proj_dropout=0.06,
+    ),
+    "base":  EmoCatNetV2K5Config(
+        depths=(3, 3, 12, 3),
+        dims=(128, 256, 512,  768),
+        drop_path_rate=0.20,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
+    "large": EmoCatNetV2K5Config(
+        depths=(3, 3, 18, 3),
+        dims=(192, 384, 768, 1024),
+        drop_path_rate=0.28,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.10,
+    ),
 }
 
 

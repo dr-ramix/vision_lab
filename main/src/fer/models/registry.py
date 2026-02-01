@@ -379,7 +379,7 @@ register_model(
 )
 
 register_model(
-    "emocatnet_xlarge",
+    "emocatnets_xlarge",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
         size="xlarge",
         num_classes=num_classes,
@@ -848,6 +848,15 @@ register_model(
     "emocatnetsv0_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
         size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv0_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="xlarge",
         num_classes=num_classes,
         in_channels=in_channels,
     ),

@@ -291,25 +291,25 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
     "tiny":  EmoCatNetConfig(
         depths=(3, 3,  9, 2),
         dims=( 96, 192,  384,  768),
-        drop_path_rate=0.15,
+        drop_path_rate=0.10,
         num_heads=8,
         attn_dropout=0.00,
-        proj_dropout=0.10,
+        proj_dropout=0.04,
     ),
     "small": EmoCatNetConfig(
         depths=(3, 3, 27, 2),
         dims=( 96, 192,  384,  768),
-        drop_path_rate=0.20,
+        drop_path_rate=0.15,
         num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.10,
+        attn_dropout=0.03,
+        proj_dropout=0.06,
     ),
     "base":  EmoCatNetConfig(
         depths=(3, 3, 27, 2),
         dims=(128, 256,  512, 1024),
-        drop_path_rate=0.25,
+        drop_path_rate=0.20,
         num_heads=8,
-        attn_dropout=0.00,
+        attn_dropout=0.05,
         proj_dropout=0.10,
     ),
 
@@ -317,9 +317,9 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
     "large": EmoCatNetConfig(
         depths=(3, 3, 27, 2),
         dims=(192, 384,  768, 1536),
-        drop_path_rate=0.30,
+        drop_path_rate=0.28,
         num_heads=8,
-        attn_dropout=0.00,
+        attn_dropout=0.05,
         proj_dropout=0.10,
     ),
     "xlarge": EmoCatNetConfig(
@@ -327,7 +327,7 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
         dims=(256, 512, 1024, 2048),
         drop_path_rate=0.40,
         num_heads=8,
-        attn_dropout=0.00,
+        attn_dropout=0.05,
         proj_dropout=0.10,
     ),
 }
