@@ -381,6 +381,14 @@ EMOCATNETS_V3_SIZES: Dict[str, EmoCatNetV3Config] = {
         attn_dropout=0.06,
         proj_dropout=0.10,
     ),
+     "xlarge": EmoCatNetV3Config(
+        depths=(3, 3, 27, 2),
+        dims=(256, 512, 1024, 2048),
+        drop_path_rate=0.40,
+        num_heads=8,
+        attn_dropout=0.08,
+        proj_dropout=0.12,
+    ),
 }
 
 
