@@ -323,7 +323,7 @@ EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
         drop_path_rate=0.10,
         num_heads=8,
         attn_dropout=0.00,
-        proj_dropout=0.04,
+        proj_dropout=0.02,
     ),
     "small": EmoCatNetV2Config(
         depths=(3, 3,  27, 2),
