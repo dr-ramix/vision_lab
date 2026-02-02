@@ -257,7 +257,7 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
         proj_dropout=0.06,
     ),
     "base":  EmoCatNetConfig(
-        depths=(3, 3, 27, 2),
+        depths=(3, 3, 27, 3),
         dims=(128, 256,  512, 1024),
         drop_path_rate=0.20,
         num_heads=8,
@@ -267,7 +267,7 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
     "large": EmoCatNetConfig(
         depths=(3, 3, 27, 2),
         dims=(192, 384,  768, 1536),
-        drop_path_rate=0.28,
+        drop_path_rate=0.30,
         num_heads=8,
         attn_dropout=0.05,
         proj_dropout=0.10,

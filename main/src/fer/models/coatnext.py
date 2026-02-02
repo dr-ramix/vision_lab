@@ -239,7 +239,7 @@ COATNEXT_SIZES: Dict[str, CoAtNeXtConfig] = {
     "tiny":  CoAtNeXtConfig(
         depths=(3, 3,  9, 2),
         dims=( 96, 192,  384,  768),
-        drop_path_rate=0.15,
+        drop_path_rate=0.10,
         num_heads=8,
         attn_dropout=0.00,
         proj_dropout=0.10,
@@ -247,7 +247,7 @@ COATNEXT_SIZES: Dict[str, CoAtNeXtConfig] = {
     "small": CoAtNeXtConfig(
         depths=(3, 3, 27, 2),
         dims=( 96, 192,  384,  768),
-        drop_path_rate=0.20,
+        drop_path_rate=0.15,
         num_heads=8,
         attn_dropout=0.00,
         proj_dropout=0.10,
@@ -255,7 +255,7 @@ COATNEXT_SIZES: Dict[str, CoAtNeXtConfig] = {
     "base":  CoAtNeXtConfig(
         depths=(3, 3, 27, 2),
         dims=(128, 256,  512, 1024),
-        drop_path_rate=0.25,
+        drop_path_rate=0.20,
         num_heads=8,
         attn_dropout=0.00,
         proj_dropout=0.10,
