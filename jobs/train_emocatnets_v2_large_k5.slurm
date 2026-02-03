@@ -2,10 +2,9 @@
 #SBATCH --job-name=emocatnets_v2_large_k5
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=90:00:00
+#SBATCH --time=55:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
-#SBATCH --exclusive
 set -euo pipefail
 
 echo "==== Job info ===="
@@ -85,7 +84,7 @@ echo "============================"
 # Run training
 # -----------------------------
 
-python train.py dataloader=grey model=emocatnetsv2k5_large epochs=300 bs=24 grad_accum=2 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
+python train.py dataloader=grey model=emocatnetsv2k5_large epochs=300 bs=24 grad_accum=1 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
     scheduler=warmup_cosine warmup_epochs=5 min_lr=3e-7 amp=true grad_clip=1.0 early_stop=300 \
     class_weight=true label_smoothing=0.07 \
     mix_prob=0.2 mixup_alpha=0.3 cutmix_alpha=0.4 \

@@ -4,7 +4,6 @@
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-xai-%j.out
-#SBATCH --exclusive
 
 set -euo pipefail
 

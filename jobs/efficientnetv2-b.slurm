@@ -1,10 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=efficientnetv2-b
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=90:00:00
+#SBATCH --time=55:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
-#SBATCH --exclusive
 
 set -euo pipefail
 

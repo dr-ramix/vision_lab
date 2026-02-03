@@ -4,7 +4,6 @@
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-layer-activation-%j.out
-#SBATCH --exclusive
 
 set -euo pipefail
 

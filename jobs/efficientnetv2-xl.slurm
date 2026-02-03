@@ -1,10 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=efficientnetv2-xl
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=90:00:00
+#SBATCH --time=55:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
-#SBATCH --exclusive
 
 set -euo pipefail
 
@@ -74,7 +73,7 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py model=efficientnetv2-xl epochs=350 bs=128 optimizer=adamw lr=3e-4 weight_decay=3e-2 \
+python train.py model=efficientnetv2-xl epochs=350 bs=24 optimizer=adamw lr=3e-4 weight_decay=3e-2 \
   scheduler=warmup_cosine warmup_epochs=10 min_lr=1e-6 amp=true grad_clip=1.0 early_stop=60 \
   class_weight=true label_smoothing=0.08 \
   mix_prob=0.2 mixup_alpha=0.3 cutmix_alpha=0.4 \
