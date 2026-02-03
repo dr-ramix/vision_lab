@@ -21,6 +21,7 @@ from fer.models.mobilenetv3 import (
     mobilenetv3_xlarge_fer,
 )
 from fer.models.emocatnets_v2 import emocatnetsv2_fer
+from fer.models.emocatnets_v2_nocbam import emocatnetsv2_nocbam_fer
 from fer.models.cnn_resnet101 import ResNet101FER
 from fer.models.convnext_fer import convnextfer_v2
 from fer.models.efficientnetv2 import EfficientNetV2
@@ -343,6 +344,15 @@ register_model(
 )
 
 register_model(
+    "emocatnets_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
     "emocatnets_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
         size="tiny",
@@ -388,6 +398,15 @@ register_model(
 )
 
 register_model(
+    "emocatnet_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
     "mobilenetv2",
     lambda num_classes, in_channels=3, transfer=False, **_: mobilenetv2_fer(
         num_classes=num_classes,
@@ -408,6 +427,15 @@ register_model("mobilenetv3_xlarge", lambda num_classes, in_channels=3, transfer
 # ------------------------------------------------------------
 # EmoCatNets-v2 (Residual STN + 64->64 stem + CBAM + T@8x8 + multi-scale head)
 # ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv2_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
 
 register_model(
     "emocatnetsv2_tiny",
@@ -440,6 +468,73 @@ register_model(
     "emocatnetsv2_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fer(
         size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+# ------------------------------------------------------------
+# EmoCatNets-v2 NoCBAM
+# ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv2nocbam_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2nocbam_tiny",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2nocbam_small",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="small",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2nocbam_base",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="base",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2nocbam_large",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2nocbam_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_nocbam_fer(
+        size="xlarge",
         num_classes=num_classes,
         in_channels=in_channels,
     ),
@@ -552,6 +647,15 @@ register_model(
 # ------------------------------------------------------------
 
 register_model(
+    "emocatnetsv3_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
     "emocatnetsv3_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
         size="tiny",
@@ -587,10 +691,28 @@ register_model(
     ),
 )
 
+register_model(
+    "emocatnetsv3_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
 
 # ------------------------------------------------------------
 # EmoCatNets-v1 Fine (ConvNeXt-initialized backbone)
 # ------------------------------------------------------------
+
+register_model(
+    "emocatnetsfine_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsfine_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
 
 register_model(
     "emocatnetsfine_tiny",
@@ -646,6 +768,16 @@ register_model(
 # EmoCatNets-v2 Fine (ConvNeXt-initialized backbone)
 # ------------------------------------------------------------
 register_model(
+    "emocatnetsv2fine_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fine_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,   # True -> load timm convnext pretrained into stage1-3 + down1-3
+    ),
+)
+
+register_model(
     "emocatnetsv2fine_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fine_fer(
         size="tiny",
@@ -685,10 +817,30 @@ register_model(
     ),
 )
 
+register_model(
+    "emocatnetsv2fine_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2_fine_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
 
 # ------------------------------------------------------------
 # EmoCatNets-v3 Fine (ConvNeXt-initialized backbone)
 # ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv3fine_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,   # True -> load convnext weights into stage1-3 + down1-2
+    ),
+)
 
 register_model(
     "emocatnetsv3fine_tiny",
@@ -730,10 +882,29 @@ register_model(
     ),
 )
 
+register_model(
+    "emocatnetsv3fine_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv3fine_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
+
 
 # ------------------------------------------------------------
 # EmoCatNets-v2-K5 (5x5 DWConv variant, NO transfer)
 # ------------------------------------------------------------
+
+register_model(
+    "emocatnetsv2k5_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
 
 register_model(
     "emocatnetsv2k5_tiny",
@@ -771,9 +942,23 @@ register_model(
     ),
 )
 
-
-
-
+register_model(
+    "emocatnetsv2k5_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v2_k5_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+register_model(
+    "coatnext_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
 
 register_model(
     "coatnext_tiny",
@@ -815,7 +1000,26 @@ register_model(
     ),
 )
 
+register_model(
+    "coatnext_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+    ),
+)
 
+
+
+register_model(
+    "emocatnetsv0_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnets_v0_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
 
 register_model(
     "emocatnetsv0_tiny",
@@ -864,6 +1068,15 @@ register_model(
 
 
 register_model(
+    "emocatnetsv2onehead_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
     "emocatnetsv2onehead_tiny",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
         size="tiny",
@@ -899,6 +1112,24 @@ register_model(
     ),
 )
 
+register_model(
+    "emocatnetsv2onehead_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetv2onehead_fer(
+        size="xlarge",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+
+register_model(
+    "emocatnetsv2residual_nano",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="nano",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
 
 register_model(
     "emocatnetsv2residual_tiny",
@@ -931,6 +1162,15 @@ register_model(
     "emocatnetsv2residual_large",
     lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
         size="large",
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "emocatnetsv2residual_xlarge",
+    lambda num_classes, in_channels=3, transfer=False, **_: emocatnetsv2residual_fer(
+        size="xlarge",
         num_classes=num_classes,
         in_channels=in_channels,
     ),

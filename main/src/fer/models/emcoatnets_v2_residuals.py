@@ -354,10 +354,54 @@ class EmoCatNetV2ResidualConfig:
 
 
 EMOCATNETS_V2_RESIDUAL_SIZES: Dict[str, EmoCatNetV2ResidualConfig] = {
-    "tiny":  EmoCatNetV2ResidualConfig(depths=(3, 3,  9, 2), dims=( 96, 192, 384,  768), drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
-    "small": EmoCatNetV2ResidualConfig(depths=(3, 3, 27, 2), dims=( 96, 192,  384,  768), drop_path_rate=0.15, num_heads=8, attn_dropout=0.03, proj_dropout=0.06),
-    "base":  EmoCatNetV2ResidualConfig(depths=(3, 3, 27, 2), dims=(128, 256,  512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.10),
-    "large": EmoCatNetV2ResidualConfig(depths=(3, 3, 27, 2), dims=(192, 384,  768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.05, proj_dropout=0.10),
+    "nano": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 6, 2),
+        dims=(64, 128, 256, 512),
+        drop_path_rate=0.06,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.00,
+    ),
+    "tiny": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 9, 2),
+        dims=(96, 192, 384, 768),
+        drop_path_rate=0.10,
+        num_heads=8,
+        attn_dropout=0.00,
+        proj_dropout=0.02,
+    ),
+    "small": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 15, 2),
+        dims=(96, 192, 384, 768),
+        drop_path_rate=0.15,
+        num_heads=8,
+        attn_dropout=0.02,
+        proj_dropout=0.05,
+    ),
+    "base": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 18, 2),
+        dims=(128, 256, 512, 1024),
+        drop_path_rate=0.20,
+        num_heads=8,
+        attn_dropout=0.05,
+        proj_dropout=0.08,
+    ),
+    "large": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 27, 2),
+        dims=(192, 384, 768, 1536),
+        drop_path_rate=0.30,
+        num_heads=8,
+        attn_dropout=0.06,
+        proj_dropout=0.10,
+    ),
+    "xlarge": EmoCatNetV2ResidualConfig(
+        depths=(3, 3, 27, 2),
+        dims=(256, 512, 1024, 2048),
+        drop_path_rate=0.40,
+        num_heads=8,
+        attn_dropout=0.08,
+        proj_dropout=0.12,
+    ),
 }
 
 
