@@ -1,12 +1,16 @@
 """
 EmoCatNets (v0) (64x64 FER)
 
+Same as your v0 code, but STN is made RESIDUAL (gated) while keeping the AMP/NaN-stable STN internals:
+
 STN FIXES (for AMP + NaN stability):
 1) STN runs in FP32 under AMP (autocast disabled inside STN).
 2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
 3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
 
-Everything else is your original v0 code.
+RESIDUAL STN:
+x_out = (1 - alpha) * x + alpha * warp(x)
+(alpha is sigmoid(alpha_logit) so always in (0,1) without clamp dead-zones)
 """
 
 import math
@@ -82,7 +86,7 @@ class LayerNorm(nn.Module):
 
 
 # ============================================================
-# STN (plain, AMP-stable, bounded)
+# STN (AMP-stable, bounded) + Residual wrapper
 # ============================================================
 
 class STNLayer(nn.Module):
@@ -136,9 +140,35 @@ class STNLayer(nn.Module):
 
             theta = (self.theta_id.unsqueeze(0) + delta).view(b, 2, 3)
             grid = F.affine_grid(theta, size=x32.size(), align_corners=False)
-            out32 = F.grid_sample(x32, grid, align_corners=False)
+            out32 = F.grid_sample(
+                x32, grid,
+                mode="bilinear",
+                padding_mode="border",  # more stable when sampling out-of-frame
+                align_corners=False,
+            )
 
         return out32.to(dtype=orig_dtype)
+
+
+class ResidualSTN(nn.Module):
+    """
+    Residual/gated STN:
+      x_out = (1 - alpha) * x + alpha * warp(x)
+    alpha is sigmoid(alpha_logit) so it's always in (0,1) without clamp dead-zones.
+    """
+    def __init__(self, in_channels: int, hidden: int = 32, delta_scale: float = 0.1, alpha_init: float = 0.15):
+        super().__init__()
+        self.stn = STNLayer(in_channels=in_channels, hidden=hidden, delta_scale=delta_scale)
+
+        alpha_init = float(alpha_init)
+        alpha_init = min(max(alpha_init, 1e-4), 1.0 - 1e-4)
+        alpha_logit = torch.log(torch.tensor(alpha_init) / (1.0 - torch.tensor(alpha_init)))
+        self.alpha_logit = nn.Parameter(alpha_logit.to(dtype=torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        xw = self.stn(x)
+        a = torch.sigmoid(self.alpha_logit).to(dtype=x.dtype)
+        return (1.0 - a) * x + a * xw
 
 
 class SELayer(nn.Module):
@@ -365,7 +395,9 @@ EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
 class EmoCatNets(nn.Module):
     """
     EmoCatNets (new downsampling plan):
-      STN (no downsampling) -> stem (no downsampling) -> stage1(C) -> down1 -> stage2(C) -> down2 -> stage3(C) -> down3 -> stage4(T, relative) -> head
+      residual STN (no downsampling) -> stem (no downsampling)
+      -> stage1(C) -> down1 -> stage2(C) -> down2 -> stage3(C) -> down3
+      -> stage4(T, relative) -> head
 
     For 64x64:
       stem: 64->64
@@ -385,6 +417,7 @@ class EmoCatNets(nn.Module):
         head_init_scale: float = 1.0,
         stn_hidden: int = 32,
         stn_delta_scale: float = 0.1,
+        stn_alpha_init: float = 0.15,
         se_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.0,
@@ -396,8 +429,13 @@ class EmoCatNets(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # STN (no downsampling, only warps)
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale)
+        # Residual STN (no downsampling, only warps)
+        self.stn = ResidualSTN(
+            in_channels=in_channels,
+            hidden=stn_hidden,
+            delta_scale=stn_delta_scale,
+            alpha_init=stn_alpha_init,
+        )
 
         # Stem (NO downsampling): 64 -> 64
         self.stem = nn.Sequential(
@@ -477,8 +515,9 @@ class EmoCatNets(nn.Module):
                     nn.init.zeros_(m.bias)
 
         # IMPORTANT: restore STN identity behavior after global init
-        nn.init.zeros_(self.stn.fc[-1].weight)
-        nn.init.zeros_(self.stn.fc[-1].bias)
+        # (keep alpha as initialized so STN starts "small but nonzero")
+        nn.init.zeros_(self.stn.stn.fc[-1].weight)
+        nn.init.zeros_(self.stn.stn.fc[-1].bias)
 
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
@@ -529,6 +568,7 @@ def emocatnets_fer(
     proj_dropout: Optional[float] = None,
     stn_hidden: int = 32,
     stn_delta_scale: float = 0.1,
+    stn_alpha_init: float = 0.15,
 ) -> "EmoCatNets":
     size = size.lower()
     if size not in EMOCATNETS_SIZES:
@@ -548,6 +588,7 @@ def emocatnets_fer(
         proj_dropout=cfg.proj_dropout if proj_dropout is None else proj_dropout,
         stn_hidden=stn_hidden,
         stn_delta_scale=stn_delta_scale,
+        stn_alpha_init=stn_alpha_init,
         se_reduction=cfg.se_reduction,
     )
 

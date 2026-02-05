@@ -1,16 +1,16 @@
 """
-EmoCatNets-v3 (64x64 FER) — plain STN + Stem (NO residual STN, NO residual stem)
+EmoCatNets-v3 (64x64 FER) — Residual STN + Stem (NO residual stem)
 
-Same as your EmoCatNets-v2, but ConvNeXt blocks are upgraded to ConvNeXtV2-style
-by adding GRN (Global Response Normalization) in the MLP path.
+Same as your EmoCatNets-v3, but STN is made residual/gated like the working v2-residual idea.
 
-ConvNeXtV2-style block (NHWC MLP):
-DWConv -> LN -> Linear(4x) -> GELU -> GRN -> Linear -> LayerScale -> DropPath -> Residual
-
-STN FIXES (for AMP + NaN stability):
+STN FIXES (AMP + NaN stability):
 1) STN runs in FP32 under AMP (autocast disabled inside STN).
 2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
 3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
+
+RESIDUAL STN:
+x_out = (1 - alpha) * x + alpha * warp(x)
+alpha is parameterized as sigmoid(alpha_logit) so it's always in (0,1) without clamp dead-zones.
 """
 
 from __future__ import annotations
@@ -112,7 +112,7 @@ class ConvNextBlockV2(nn.Module):
 
 
 # ============================================================
-# STN (plain, AMP-stable, bounded)
+# STN (AMP-stable, bounded) + Residual wrapper
 # ============================================================
 
 class STNLayer(nn.Module):
@@ -139,7 +139,6 @@ class STNLayer(nn.Module):
             nn.Linear(hidden, 6),
         )
 
-        # Identity affine as buffer (moves with device)
         self.register_buffer(
             "theta_id",
             torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float32),
@@ -161,14 +160,46 @@ class STNLayer(nn.Module):
             y = self.localization(x32).view(b, -1)
             delta = self.fc(y)  # (B, 6)
 
-            # Bound transform magnitude
             delta = self.delta_scale * torch.tanh(delta)
-
             theta = (self.theta_id.unsqueeze(0) + delta).view(b, 2, 3)
+
             grid = F.affine_grid(theta, size=x32.size(), align_corners=False)
-            out32 = F.grid_sample(x32, grid, align_corners=False)
+            out32 = F.grid_sample(
+                x32, grid,
+                mode="bilinear",
+                padding_mode="border",   # more stable than zeros when warp goes out of frame
+                align_corners=False,
+            )
 
         return out32.to(dtype=orig_dtype)
+
+
+class ResidualSTN(nn.Module):
+    """
+    Residual/gated STN:
+      x_out = (1 - alpha) * x + alpha * warp(x)
+    alpha is learned; sigmoid keeps it in (0,1) without clamp dead zones.
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        hidden: int = 32,
+        delta_scale: float = 0.1,
+        alpha_init: float = 0.15,
+    ):
+        super().__init__()
+        self.stn = STNLayer(in_channels=in_channels, hidden=hidden, delta_scale=delta_scale)
+
+        # alpha = sigmoid(alpha_logit)
+        alpha_init = float(alpha_init)
+        alpha_init = min(max(alpha_init, 1e-4), 1.0 - 1e-4)
+        alpha_logit = torch.log(torch.tensor(alpha_init) / (1.0 - torch.tensor(alpha_init)))
+        self.alpha_logit = nn.Parameter(alpha_logit.to(dtype=torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        xw = self.stn(x)
+        a = torch.sigmoid(self.alpha_logit).to(dtype=x.dtype)
+        return (1.0 - a) * x + a * xw
 
 
 # ============================================================
@@ -440,7 +471,7 @@ EMOCATNETS_V3_SIZES: Dict[str, EmoCatNetV3Config] = {
 class EmoCatNetsV3(nn.Module):
     """
     EmoCatNets-v3:
-      (optional) plain STN -> stem(64->64) -> stage1(C@64)
+      (optional) residual STN -> stem(64->64) -> stage1(C@64)
       -> down1(64->32) -> stage2(C@32)
       -> down2(32->16) -> stage3(C@16) [save feat16]
       -> down3(16->8)  -> stage4(T@8 tokens) [save feat8]
@@ -458,6 +489,7 @@ class EmoCatNetsV3(nn.Module):
         use_stn: bool = True,
         stn_hidden: int = 32,
         stn_delta_scale: float = 0.1,
+        stn_alpha_init: float = 0.15,
         cbam_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.05,
@@ -470,7 +502,15 @@ class EmoCatNetsV3(nn.Module):
         d0, d1, d2, d3 = dims
 
         self.use_stn = use_stn
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale) if use_stn else nn.Identity()
+        self.stn = (
+            ResidualSTN(
+                in_channels=in_channels,
+                hidden=stn_hidden,
+                delta_scale=stn_delta_scale,
+                alpha_init=stn_alpha_init,
+            )
+            if use_stn else nn.Identity()
+        )
 
         self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
@@ -539,9 +579,10 @@ class EmoCatNetsV3(nn.Module):
                     nn.init.zeros_(m.bias)
 
         # IMPORTANT: restore STN identity behavior after global init
-        if self.use_stn and isinstance(self.stn, STNLayer):
-            nn.init.zeros_(self.stn.fc[-1].weight)
-            nn.init.zeros_(self.stn.fc[-1].bias)
+        if self.use_stn and isinstance(self.stn, ResidualSTN):
+            nn.init.zeros_(self.stn.stn.fc[-1].weight)
+            nn.init.zeros_(self.stn.stn.fc[-1].bias)
+            # keep alpha_logit as initialized (so it still starts "small but nonzero")
 
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
@@ -598,6 +639,7 @@ def emocatnetsv3_fer(
     cbam_reduction: Optional[int] = None,
     stn_hidden: int = 32,
     stn_delta_scale: float = 0.1,
+    stn_alpha_init: float = 0.15,
 ) -> EmoCatNetsV3:
     size = size.lower()
     if size not in EMOCATNETS_V3_SIZES:
@@ -615,6 +657,7 @@ def emocatnetsv3_fer(
         use_stn=use_stn,
         stn_hidden=stn_hidden,
         stn_delta_scale=stn_delta_scale,
+        stn_alpha_init=stn_alpha_init,
         cbam_reduction=cfg.cbam_reduction if cbam_reduction is None else cbam_reduction,
         num_heads=cfg.num_heads if num_heads is None else num_heads,
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,

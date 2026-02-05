@@ -1,10 +1,18 @@
 """
-EmoCatNets-v2 (64x64 FER) — plain STN + stem (NO residual STN, NO residual stem)
+EmoCatNets-v2 (64x64 FER) — Residual STN + stem (NO residual stem)
 
-Changes vs your version (for NaN stability with AMP):
+This is your v2 code, corrected and updated to use a *residual* STN like the version you provided,
+but keeping the AMP/NaN-stable STN internals:
+
+STN FIXES (for AMP + NaN stability):
 1) STN runs in FP32 under AMP (autocast disabled inside STN).
 2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
 3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
+4) Residual blending: x_out = (1-a)*x + a*warp(x), with a = sigmoid(alpha_logit).
+
+Notes:
+- Using sigmoid(alpha_logit) is better than clamp(alpha) (no dead gradients).
+- Default alpha_init=0.15 (same intent as your residual STN).
 """
 
 from __future__ import annotations
@@ -12,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -79,7 +88,7 @@ class ConvNextBlock(nn.Module):
 
 
 # ============================================================
-# STN (plain, AMP-stable, bounded)
+# STN (AMP-stable, bounded) + Residual wrapper
 # ============================================================
 
 class STNLayer(nn.Module):
@@ -120,8 +129,7 @@ class STNLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         orig_dtype = x.dtype
 
-        # AMP safety: run STN in FP32
-        # If CUDA is not available, this context is harmless.
+        # Run STN in FP32 for AMP stability
         with torch.cuda.amp.autocast(enabled=False):
             x32 = x.float()
             b = x32.size(0)
@@ -137,6 +145,33 @@ class STNLayer(nn.Module):
             out32 = F.grid_sample(x32, grid, align_corners=False)
 
         return out32.to(dtype=orig_dtype)
+
+
+class ResidualSTN(nn.Module):
+    """
+    Residual STN:
+      x_out = (1 - a) * x + a * warp(x)
+    where a is learnable (sigmoid), initialized near alpha_init.
+    """
+    def __init__(
+        self,
+        in_channels: int,
+        hidden: int = 32,
+        delta_scale: float = 0.1,
+        alpha_init: float = 0.15,
+    ):
+        super().__init__()
+        self.stn = STNLayer(in_channels=in_channels, hidden=hidden, delta_scale=delta_scale)
+
+        # Learnable gate in logit space (better than clamp)
+        alpha_init = float(alpha_init)
+        alpha_init = min(max(alpha_init, 1e-4), 1.0 - 1e-4)
+        self.alpha_logit = nn.Parameter(torch.tensor(math.log(alpha_init / (1.0 - alpha_init)), dtype=torch.float32))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        xw = self.stn(x)
+        a = torch.sigmoid(self.alpha_logit).to(dtype=x.dtype)
+        return (1.0 - a) * x + a * xw
 
 
 # ============================================================
@@ -333,7 +368,7 @@ class Stem(nn.Module):
 
 
 # ============================================================
-# Config / Sizes  (RENAMED TO V2)
+# Config / Sizes  (V2)
 # ============================================================
 
 @dataclass(frozen=True)
@@ -350,54 +385,12 @@ class EmoCatNetV2Config:
 
 
 EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
-    "nano": EmoCatNetV2Config(
-        depths=(3, 3, 6, 2),
-        dims=(64, 128, 256, 512),
-        drop_path_rate=0.06,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.00,
-    ),
-    "tiny": EmoCatNetV2Config(
-        depths=(3, 3, 9, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.10,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.02,
-    ),
-    "small": EmoCatNetV2Config(
-        depths=(3, 3, 15, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.15,
-        num_heads=8,
-        attn_dropout=0.02,
-        proj_dropout=0.05,
-    ),
-    "base": EmoCatNetV2Config(
-        depths=(3, 3, 18, 2),
-        dims=(128, 256, 512, 1024),
-        drop_path_rate=0.20,
-        num_heads=8,
-        attn_dropout=0.05,
-        proj_dropout=0.08,
-    ),
-    "large": EmoCatNetV2Config(
-        depths=(3, 3, 27, 2),
-        dims=(192, 384, 768, 1536),
-        drop_path_rate=0.30,
-        num_heads=8,
-        attn_dropout=0.06,
-        proj_dropout=0.10,
-    ),
-    "xlarge": EmoCatNetV2Config(
-        depths=(3, 3, 27, 2),
-        dims=(256, 512, 1024, 2048),
-        drop_path_rate=0.40,
-        num_heads=8,
-        attn_dropout=0.08,
-        proj_dropout=0.12,
-    ),
+    "nano": EmoCatNetV2Config(depths=(3, 3, 6, 2), dims=(64, 128, 256, 512), drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
+    "tiny": EmoCatNetV2Config(depths=(3, 3, 9, 2), dims=(96, 192, 384, 768), drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
+    "small": EmoCatNetV2Config(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768), drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
+    "base": EmoCatNetV2Config(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
+    "large": EmoCatNetV2Config(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
+    "xlarge": EmoCatNetV2Config(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048), drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
 }
 
 
@@ -407,8 +400,8 @@ EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
 
 class EmoCatNetsV2(nn.Module):
     """
-    EmoCatNets-v2 (plain):
-      (optional) plain STN -> stem(64->64) -> stage1(C@64)
+    EmoCatNets-v2 (residual STN):
+      residual STN -> stem(64->64) -> stage1(C@64)
       -> down1(64->32) -> stage2(C@32)
       -> down2(32->16) -> stage3(C@16) [save feat16]
       -> down3(16->8)  -> stage4(T@8 tokens) [save feat8]
@@ -426,6 +419,7 @@ class EmoCatNetsV2(nn.Module):
         use_stn: bool = True,
         stn_hidden: int = 32,
         stn_delta_scale: float = 0.1,
+        stn_alpha_init: float = 0.15,
         cbam_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.05,
@@ -438,7 +432,10 @@ class EmoCatNetsV2(nn.Module):
         d0, d1, d2, d3 = dims
 
         self.use_stn = use_stn
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale) if use_stn else nn.Identity()
+        self.stn = (
+            ResidualSTN(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale, alpha_init=stn_alpha_init)
+            if use_stn else nn.Identity()
+        )
 
         self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
@@ -506,10 +503,11 @@ class EmoCatNetsV2(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-        # IMPORTANT: restore STN identity init after global init (so STN starts as identity)
-        if self.use_stn and isinstance(self.stn, STNLayer):
-            nn.init.zeros_(self.stn.fc[-1].weight)
-            nn.init.zeros_(self.stn.fc[-1].bias)
+        # IMPORTANT: restore STN identity behavior after global init
+        if self.use_stn and isinstance(self.stn, ResidualSTN):
+            nn.init.zeros_(self.stn.stn.fc[-1].weight)
+            nn.init.zeros_(self.stn.stn.fc[-1].bias)
+            # alpha gate already init'd via logit; keep as-is
 
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
@@ -566,6 +564,7 @@ def emocatnetsv2_fer(
     cbam_reduction: Optional[int] = None,
     stn_hidden: int = 32,
     stn_delta_scale: float = 0.1,
+    stn_alpha_init: float = 0.15,
 ) -> EmoCatNetsV2:
     size = size.lower()
     if size not in EMOCATNETS_V2_SIZES:
@@ -583,6 +582,7 @@ def emocatnetsv2_fer(
         use_stn=use_stn,
         stn_hidden=stn_hidden,
         stn_delta_scale=stn_delta_scale,
+        stn_alpha_init=stn_alpha_init,
         cbam_reduction=cfg.cbam_reduction if cbam_reduction is None else cbam_reduction,
         num_heads=cfg.num_heads if num_heads is None else num_heads,
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,
@@ -604,7 +604,7 @@ def _shape_test(image_size: int = 64, batch_size: int = 2, num_classes: int = 6,
     for name in EMOCATNETS_V2_SIZES.keys():
         model = emocatnetsv2_fer(name, in_channels=in_channels, num_classes=num_classes, use_stn=True).to(device).eval()
         x = torch.randn(batch_size, in_channels, image_size, image_size, device=device)
-        y = model(x)
+        y = model(x) 
         print(f"{name:6s} | params={_count_params(model):,} | out={tuple(y.shape)}")
         assert y.shape == (batch_size, num_classes)
 
