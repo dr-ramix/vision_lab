@@ -6,6 +6,11 @@ by adding GRN (Global Response Normalization) in the MLP path.
 
 ConvNeXtV2-style block (NHWC MLP):
 DWConv -> LN -> Linear(4x) -> GELU -> GRN -> Linear -> LayerScale -> DropPath -> Residual
+
+STN FIXES (for AMP + NaN stability):
+1) STN runs in FP32 under AMP (autocast disabled inside STN).
+2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
+3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
 """
 
 from __future__ import annotations
@@ -60,7 +65,6 @@ class GRN(nn.Module):
         self.beta  = nn.Parameter(torch.zeros(1, 1, 1, dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, H, W, C)
         gx = torch.norm(x, p=2, dim=(1, 2), keepdim=True)  # (B, 1, 1, C)
         nx = gx / (gx.mean(dim=-1, keepdim=True) + self.eps)
         return x + self.gamma * (x * nx) + self.beta
@@ -108,13 +112,20 @@ class ConvNextBlockV2(nn.Module):
 
 
 # ============================================================
-# STN (plain, not residual)
+# STN (plain, AMP-stable, bounded)
 # ============================================================
 
 class STNLayer(nn.Module):
-    """Light STN. Bias initialized to identity affine; last layer weights zero."""
-    def __init__(self, in_channels: int, hidden: int = 32):
+    """
+    Light STN (AMP-stable):
+      - STN math in FP32 (autocast disabled inside)
+      - predicts bounded delta around identity: theta = I + scale*tanh(delta)
+      - returns output cast back to original dtype
+    """
+    def __init__(self, in_channels: int, hidden: int = 32, delta_scale: float = 0.1):
         super().__init__()
+        self.delta_scale = float(delta_scale)
+
         self.localization = nn.Sequential(
             nn.Conv2d(in_channels, hidden, kernel_size=5, stride=2, padding=2),
             nn.ReLU(inplace=True),
@@ -127,15 +138,37 @@ class STNLayer(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(hidden, 6),
         )
+
+        # Identity affine as buffer (moves with device)
+        self.register_buffer(
+            "theta_id",
+            torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float32),
+            persistent=False,
+        )
+
+        # Initialize to produce zero delta -> identity at start
         nn.init.zeros_(self.fc[-1].weight)
-        self.fc[-1].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        nn.init.zeros_(self.fc[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b = x.size(0)
-        y = self.localization(x).view(b, -1)
-        theta = self.fc(y).view(b, 2, 3)
-        grid = F.affine_grid(theta, size=x.size(), align_corners=False)
-        return F.grid_sample(x, grid, align_corners=False)
+        orig_dtype = x.dtype
+
+        # AMP safety: run STN in FP32
+        with torch.cuda.amp.autocast(enabled=False):
+            x32 = x.float()
+            b = x32.size(0)
+
+            y = self.localization(x32).view(b, -1)
+            delta = self.fc(y)  # (B, 6)
+
+            # Bound transform magnitude
+            delta = self.delta_scale * torch.tanh(delta)
+
+            theta = (self.theta_id.unsqueeze(0) + delta).view(b, 2, 3)
+            grid = F.affine_grid(theta, size=x32.size(), align_corners=False)
+            out32 = F.grid_sample(x32, grid, align_corners=False)
+
+        return out32.to(dtype=orig_dtype)
 
 
 # ============================================================
@@ -315,7 +348,7 @@ class RelativeTransformerBlockV2(nn.Module):
 
 
 # ============================================================
-# Stem (RENAMED) — NO downsampling: 64 -> 64
+# Stem — NO downsampling: 64 -> 64
 # ============================================================
 
 class Stem(nn.Module):
@@ -424,6 +457,7 @@ class EmoCatNetsV3(nn.Module):
         head_init_scale: float = 1.0,
         use_stn: bool = True,
         stn_hidden: int = 32,
+        stn_delta_scale: float = 0.1,
         cbam_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.05,
@@ -436,7 +470,7 @@ class EmoCatNetsV3(nn.Module):
         d0, d1, d2, d3 = dims
 
         self.use_stn = use_stn
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden) if use_stn else nn.Identity()
+        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale) if use_stn else nn.Identity()
 
         self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
@@ -504,6 +538,11 @@ class EmoCatNetsV3(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+        # IMPORTANT: restore STN identity behavior after global init
+        if self.use_stn and isinstance(self.stn, STNLayer):
+            nn.init.zeros_(self.stn.fc[-1].weight)
+            nn.init.zeros_(self.stn.fc[-1].bias)
+
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
             self.head.bias.data.mul_(head_init_scale)
@@ -558,6 +597,7 @@ def emocatnetsv3_fer(
     proj_dropout: Optional[float] = None,
     cbam_reduction: Optional[int] = None,
     stn_hidden: int = 32,
+    stn_delta_scale: float = 0.1,
 ) -> EmoCatNetsV3:
     size = size.lower()
     if size not in EMOCATNETS_V3_SIZES:
@@ -574,6 +614,7 @@ def emocatnetsv3_fer(
         head_init_scale=cfg.head_init_scale if head_init_scale is None else head_init_scale,
         use_stn=use_stn,
         stn_hidden=stn_hidden,
+        stn_delta_scale=stn_delta_scale,
         cbam_reduction=cfg.cbam_reduction if cbam_reduction is None else cbam_reduction,
         num_heads=cfg.num_heads if num_heads is None else num_heads,
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,

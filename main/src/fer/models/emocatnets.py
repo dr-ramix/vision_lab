@@ -1,9 +1,12 @@
 """
-EmoCatNets (64x64 FER)
-Key changes:
-- drop_path_rate: tiny 0.15, small 0.20, base 0.25
-- transformer attn_dropout: 0.0 (tiny token count: 16)
-- transformer proj_dropout: 0.10
+EmoCatNets (v0) (64x64 FER)
+
+STN FIXES (for AMP + NaN stability):
+1) STN runs in FP32 under AMP (autocast disabled inside STN).
+2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
+3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
+
+Everything else is your original v0 code.
 """
 
 import math
@@ -78,10 +81,21 @@ class LayerNorm(nn.Module):
         return x
 
 
+# ============================================================
+# STN (plain, AMP-stable, bounded)
+# ============================================================
+
 class STNLayer(nn.Module):
-    """Light STN. Bias initialized to identity affine; last layer weights zero."""
-    def __init__(self, in_channels: int, hidden: int = 32):
+    """
+    Light STN (AMP-stable):
+      - STN math in FP32 (autocast disabled inside)
+      - predicts bounded delta around identity: theta = I + scale*tanh(delta)
+      - returns output cast back to original dtype
+    """
+    def __init__(self, in_channels: int, hidden: int = 32, delta_scale: float = 0.1):
         super().__init__()
+        self.delta_scale = float(delta_scale)
+
         self.localization = nn.Sequential(
             nn.Conv2d(in_channels, hidden, kernel_size=5, stride=2, padding=2),
             nn.ReLU(inplace=True),
@@ -94,15 +108,37 @@ class STNLayer(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(hidden, 6),
         )
+
+        # Identity affine as buffer (moves with device)
+        self.register_buffer(
+            "theta_id",
+            torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float32),
+            persistent=False,
+        )
+
+        # Initialize to produce zero delta -> identity at start
         nn.init.zeros_(self.fc[-1].weight)
-        self.fc[-1].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        nn.init.zeros_(self.fc[-1].bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b = x.size(0)
-        y = self.localization(x).view(b, -1)
-        theta = self.fc(y).view(b, 2, 3)
-        grid = F.affine_grid(theta, size=x.size(), align_corners=False)
-        return F.grid_sample(x, grid, align_corners=False)
+        orig_dtype = x.dtype
+
+        # AMP safety: run STN in FP32
+        with torch.cuda.amp.autocast(enabled=False):
+            x32 = x.float()
+            b = x32.size(0)
+
+            y = self.localization(x32).view(b, -1)
+            delta = self.fc(y)  # (B, 6)
+
+            # Bound transform magnitude
+            delta = self.delta_scale * torch.tanh(delta)
+
+            theta = (self.theta_id.unsqueeze(0) + delta).view(b, 2, 3)
+            grid = F.affine_grid(theta, size=x32.size(), align_corners=False)
+            out32 = F.grid_sample(x32, grid, align_corners=False)
+
+        return out32.to(dtype=orig_dtype)
 
 
 class SELayer(nn.Module):
@@ -127,7 +163,7 @@ class SELayer(nn.Module):
 
 # ============================================================
 # Relative Attention (CoAtNet/Swin-style relative position bias)
-# Fixed grid size (4x4) for the last stage in this architecture.
+# Fixed grid size (8x8) for the last stage in this architecture.
 # ============================================================
 
 class RelativePositionBias(nn.Module):
@@ -140,39 +176,30 @@ class RelativePositionBias(nn.Module):
         self.heads = heads
         self.height = height
         self.width = width
-        T = height * width
 
-        # Table size: (2H-1)*(2W-1), each entry has 'heads' biases
         self.relative_bias_table = nn.Parameter(
             torch.zeros((2 * height - 1) * (2 * width - 1), heads)
         )
 
-        # Build index mapping from (token_i, token_j) -> bias_table_idx
         coords_h = torch.arange(height)
         coords_w = torch.arange(width)
-        coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))  # (2, H, W)
-        coords = coords.flatten(1)  # (2, T)
+        coords = torch.stack(torch.meshgrid(coords_h, coords_w, indexing="ij"))
+        coords = coords.flatten(1)
 
-        # relative coords: (2, T, T)
         relative_coords = coords[:, :, None] - coords[:, None, :]
         relative_coords[0] += height - 1
         relative_coords[1] += width - 1
         relative_coords[0] *= 2 * width - 1
-        relative_index = relative_coords[0] + relative_coords[1]  # (T, T)
+        relative_index = relative_coords[0] + relative_coords[1]
 
         self.register_buffer("relative_position_index", relative_index, persistent=False)
-
         nn.init.trunc_normal_(self.relative_bias_table, std=0.02)
 
     def forward(self) -> torch.Tensor:
-        """
-        Returns:
-            bias: (heads, T, T)
-        """
         T = self.height * self.width
-        idx = self.relative_position_index.view(-1)       # (T*T,)
-        bias = self.relative_bias_table[idx]              # (T*T, heads)
-        bias = bias.view(T, T, self.heads).permute(2, 0, 1).contiguous()  # (heads, T, T)
+        idx = self.relative_position_index.view(-1)
+        bias = self.relative_bias_table[idx]
+        bias = bias.view(T, T, self.heads).permute(2, 0, 1).contiguous()
         return bias
 
 
@@ -206,22 +233,19 @@ class RelativeMHSA(nn.Module):
         self.rpb = RelativePositionBias(heads=heads, height=height, width=width)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        x: (B, T, C)
-        """
         B, T, C = x.shape
-        qkv = self.qkv(x)  # (B, T, 3C)
+        qkv = self.qkv(x)
         qkv = qkv.reshape(B, T, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # each: (B, heads, T, head_dim)
+        q, k, v = qkv[0], qkv[1], qkv[2]
 
-        attn = (q @ k.transpose(-2, -1)) * self.scale  # (B, heads, T, T)
-        attn = attn + self.rpb().unsqueeze(0)          # (1, heads, T, T)
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn + self.rpb().unsqueeze(0)
 
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
-        out = attn @ v                                 # (B, heads, T, head_dim)
-        out = out.transpose(1, 2).reshape(B, T, C)      # (B, T, C)
+        out = attn @ v
+        out = out.transpose(1, 2).reshape(B, T, C)
 
         out = self.proj(out)
         out = self.proj_drop(out)
@@ -231,7 +255,7 @@ class RelativeMHSA(nn.Module):
 class RelativeTransformerBlock(nn.Module):
     """
     Pre-LN + Relative MHSA + MLP, with StochasticDepth.
-    Fixed token grid (H, W) at init time (here 4x4).
+    Fixed token grid (H, W) at init time (here 8x8).
     """
     def __init__(
         self,
@@ -287,7 +311,6 @@ class EmoCatNetConfig:
 
 
 EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
-    # Updated defaults (from-scratch, 90k, mixup+cutmix)
     "nano": EmoCatNetConfig(
         depths=(3, 3, 6, 2),
         dims=(64, 128, 256, 512),
@@ -361,6 +384,7 @@ class EmoCatNets(nn.Module):
         layer_scale_init_value: float = 1e-6,
         head_init_scale: float = 1.0,
         stn_hidden: int = 32,
+        stn_delta_scale: float = 0.1,
         se_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.0,
@@ -373,10 +397,9 @@ class EmoCatNets(nn.Module):
         d0, d1, d2, d3 = dims
 
         # STN (no downsampling, only warps)
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden)
+        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden, delta_scale=stn_delta_scale)
 
         # Stem (NO downsampling): 64 -> 64
-        # Keep it simple: conv + LN (channels_first)
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1),
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
@@ -453,6 +476,10 @@ class EmoCatNets(nn.Module):
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
+        # IMPORTANT: restore STN identity behavior after global init
+        nn.init.zeros_(self.stn.fc[-1].weight)
+        nn.init.zeros_(self.stn.fc[-1].bias)
+
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
             self.head.bias.data.mul_(head_init_scale)
@@ -488,6 +515,7 @@ class EmoCatNets(nn.Module):
         logits = self.head(feat)
         return logits
 
+
 def emocatnets_fer(
     size: str = "tiny",
     in_channels: int = 3,
@@ -500,7 +528,8 @@ def emocatnets_fer(
     attn_dropout: Optional[float] = None,
     proj_dropout: Optional[float] = None,
     stn_hidden: int = 32,
-) -> EmoCatNets:
+    stn_delta_scale: float = 0.1,
+) -> "EmoCatNets":
     size = size.lower()
     if size not in EMOCATNETS_SIZES:
         raise ValueError(f"Unknown size='{size}'. Valid: {list(EMOCATNETS_SIZES.keys())}")
@@ -518,6 +547,7 @@ def emocatnets_fer(
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,
         proj_dropout=cfg.proj_dropout if proj_dropout is None else proj_dropout,
         stn_hidden=stn_hidden,
+        stn_delta_scale=stn_delta_scale,
         se_reduction=cfg.se_reduction,
     )
 
