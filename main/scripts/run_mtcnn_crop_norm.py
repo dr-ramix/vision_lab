@@ -1,22 +1,3 @@
-# main/scripts/run_mtcnn_crop_norm.py
-# Läuft über:   src/fer/dataset/standardized/images_raw/{train,val,test}/{class}/*
-#
-# Schreibt nach:
-#   src/fer/dataset/standardized/images_mtcnn_cropped_norm/png/{train,val,test}/{class}/*.png
-#   src/fer/dataset/standardized/images_mtcnn_cropped_norm/npy/{train,val,test}/{class}/*.npy
-#
-# Überschreibt IMMER vorhandene Outputs (pro Run, pro Split/Class).
-#
-# Pipeline:
-#   1) MTCNN Face Crop (PIL RGB)
-#   2) Crop -> cv2 BGR uint8
-#   3) FORCE GREY: BGR -> Gray(1ch)
-#   4) CLAHE auf Gray (uint8)
-#   5) Stack Gray -> 3 Kanäle (identische Kanäle)
-#   6) Save outputs:
-#        PNG: uint8 (64,64,3)
-#        NPY: float32 (64,64,3) in [0,1]
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -82,12 +63,10 @@ def run_preprocessing(
         width_half=width_half,
     )
 
-    # CLAHE object (OpenCV)
     clahe = cv2.createCLAHE(clipLimit=float(clip_limit), tileGridSize=tuple(tile_grid_size))
 
     out_root.mkdir(parents=True, exist_ok=True)
 
-    # separate subfolders for png + npy
     out_png_root = out_root / "png"
     out_npy_root = out_root / "npy"
     out_png_root.mkdir(parents=True, exist_ok=True)
@@ -128,13 +107,13 @@ def run_preprocessing(
                     # 2) resize to target_size (64x64) BEFORE CLAHE (consistent output)
                     crop_bgr = cv2.resize(crop_bgr, target_size, interpolation=cv2.INTER_LINEAR)
 
-                    # 3) force grayscale
+                    # force grayscale
                     gray = to_gray_u8(crop_bgr)
 
-                    # 4) CLAHE on grayscale
+                    # CLAHE on grayscale
                     gray_clahe = clahe.apply(gray)
 
-                    # 5) stack to 3 channels (BGR)
+                    # stack to 3 channels (BGR)
                     out_bgr_u8 = gray_u8_to_3ch_bgr_u8(gray_clahe)
 
                     prob_str = "pNA" if r.prob is None else f"p{r.prob:.3f}"

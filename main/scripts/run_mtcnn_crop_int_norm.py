@@ -44,11 +44,11 @@ def run_preprocessing(
     images_raw_root: Path,
     out_root: Path,
     overwrite_outputs: bool = True,
-    # --- MTCNN settings ---
+    # MTCNN settings 
     keep_all: bool = True,
     min_prob: float = 0.0,
     width_half: float = 1.3,
-    # --- Basic processing settings ---
+    # Basic processing settings
     target_size=(64, 64),
     ksize: int = 7,
     sigma_floor: float = 10.0,
@@ -106,11 +106,10 @@ def run_preprocessing(
                     crop_bgr = pil_rgb_to_bgr_uint8(r.crop)
                     proc = basic.process_bgr(crop_bgr)
 
-                    # proc.normalized_gray_vis: (H,W) uint8 (vis)
-                    # 1) PNG: store as 3ch BGR so cv2.imwrite works as expected
+                    # PNG
                     png_bgr_3ch = gray_to_3ch_bgr_u8(proc.normalized_gray_vis)
 
-                    # 2) NPY: float32 [0,1] with RGB channel order
+                    # NPY
                     png_rgb_3ch_u8 = bgr_to_rgb_uint8(png_bgr_3ch)
                     npy_rgb_float = to_float01_rgb(png_rgb_3ch_u8)  # (H,W,3), float32 in [0,1]
 
@@ -129,16 +128,12 @@ def run_preprocessing(
 
 
 def main():
-    # Assumes this file lives somewhere under: vision_lab/main/...
-    # project_root -> .../vision_lab/main
     project_root = Path(__file__).resolve().parents[1]
 
-    # Source (as you requested)
     images_raw_root = (
         project_root / "src" / "fer" / "dataset" / "standardized" / "images_raw"
     )
 
-    # Target (as you requested)
     out_root = (
         project_root
         / "src"

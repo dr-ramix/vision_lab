@@ -11,9 +11,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 
-# ============================================================
-# Class mapping (fixed order)
-# ============================================================
 CLASS_ORDER: List[str] = [
     "anger",      # 0
     "disgust",    # 1
@@ -24,10 +21,6 @@ CLASS_ORDER: List[str] = [
 ]
 CLASS_TO_IDX: Dict[str, int] = {c: i for i, c in enumerate(CLASS_ORDER)}
 
-
-# ============================================================
-# Small container to match other loaders (dls.train/val/test)
-# ============================================================
 @dataclass
 class _DLS:
     train: DataLoader
@@ -36,9 +29,6 @@ class _DLS:
     class_to_idx: Dict[str, int]
 
 
-# ============================================================
-# Import train augmentations from dataloader_grey (re-usable)
-# ============================================================
 from fer.dataset.dataloaders.dataloader_grey import build_train_augmentations
 
 
@@ -50,21 +40,7 @@ def _read_stats(stats_json: Path) -> Tuple[List[float], List[float], Tuple[int, 
     target_size = (int(ts[0]), int(ts[1]))
     return mean, std, target_size
 
-
-# ============================================================
-# resolve paths given images_root = ".../standardized"
-# ============================================================
 def _resolve_mtcnn_cropped_paths(standardized_root: Path) -> Tuple[Path, Path]:
-    """
-    images_root is usually:
-      .../main/src/fer/dataset/standardized
-
-    We want:
-      npy_root   = .../standardized/fer2013/fer2013_mtcnn_cropped/npy
-      stats_json = .../standardized/fer2013/fer2013_mtcnn_cropped/dataset_stats_train.json
-
-    Also supports if caller passes already ".../fer2013_mtcnn_cropped" or ".../npy".
-    """
     standardized_root = Path(standardized_root)
 
     # case A: caller already passes ".../fer2013_mtcnn_cropped/npy"
@@ -87,9 +63,6 @@ def _resolve_mtcnn_cropped_paths(standardized_root: Path) -> Tuple[Path, Path]:
     return npy_root, stats_json
 
 
-# ============================================================
-# Dataset (same logic as mixed/grey)
-# ============================================================
 class NpyFolderDataset(Dataset):
     def __init__(
         self,
@@ -161,12 +134,9 @@ class NpyFolderDataset(Dataset):
         return x, y
 
 
-# ============================================================
-# Public builder (matches registry expectation)
-# ============================================================
 def build_dataloaders(
     *,
-    images_root: Path,              # expected: .../standardized (or .../fer2013_mtcnn_cropped[/npy])
+    images_root: Path,             
     batch_size: int = 64,
     num_workers: int = 4,
     pin_memory: bool = True,

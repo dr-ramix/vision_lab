@@ -63,9 +63,7 @@ import numpy as np
 from PIL import Image
 
 
-# ============================================================
-# .env helpers
-# ============================================================
+
 def _read_env_value(env_path: Path, key: str) -> Optional[str]:
     if not env_path.exists():
         return None
@@ -130,9 +128,6 @@ def _ensure_kaggle_auth() -> None:
         pass
 
 
-# ============================================================
-# Command runner + copy helper
-# ============================================================
 def _run(cmd: list[str], *, cwd: Optional[Path] = None) -> None:
     p = subprocess.run(
         cmd,
@@ -156,9 +151,7 @@ def _copytree_overwrite(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst)
 
 
-# ============================================================
 # FER2013 (download + CSV -> images)
-# ============================================================
 FER2013_COMPETITION = "challenges-in-representation-learning-facial-expression-recognition-challenge"
 
 IDX_TO_NAME = {
@@ -297,9 +290,7 @@ def _write_fer2013_images(rows: list[FerRow], out_root: Path) -> list[int]:
     return labels_by_index
 
 
-# ============================================================
 # FERPlus (local CSV labels + same pixel images, relabeled)
-# ============================================================
 FERPLUS_COLUMNS = [
     "neutral",
     "happiness",
@@ -427,11 +418,9 @@ def _write_ferplus_images(
     print(f"Done FERPlus: wrote {wrote} images.")
 
 
-# ============================================================
 # fer2013_raw post-processing:
 # 1) rename split folder validation -> val
 # 2) remove "neutral" from train/val/test
-# ============================================================
 def _rename_validation_to_val(fer2013_raw_root: Path) -> None:
     old = fer2013_raw_root / "validation"
     new = fer2013_raw_root / "val"
@@ -461,9 +450,7 @@ def _remove_neutral_from_fer2013_raw(fer2013_raw_root: Path) -> None:
         print("No 'neutral' folders found in fer2013_raw (nothing removed).")
 
 
-# ============================================================
 # RAF-DB (unchanged)
-# ============================================================
 def _extract_file_id(url: str) -> Optional[str]:
     m = re.search(r"/file/d/([a-zA-Z0-9_-]+)", url)
     if m:
@@ -736,9 +723,7 @@ def _prepare_rafdb_from_drive_files(sources_dir: Path, overwrite: bool = True) -
             print(f"[INFO] Keeping temp folder for debugging: {work_dir}")
 
 
-# ============================================================
-# Main
-# ============================================================
+
 def main() -> None:
     project_main = Path(__file__).resolve().parents[1]  # .../main
 
@@ -766,21 +751,21 @@ def main() -> None:
     fer2013_out = sources_dir / "fer2013"
     fer2013_labels_by_index = _write_fer2013_images(fer_rows, fer2013_out)
 
-    # ---- Mirror FER2013 into standardized/fer2013/fer2013_raw
+    # Mirror FER2013 into standardized/fer2013/fer2013_raw
     fer2013_raw_out = standardized_fer2013_dir / "fer2013_raw"
     _copytree_overwrite(fer2013_out, fer2013_raw_out)
     _rename_validation_to_val(fer2013_raw_out)          # <-- NEW (validation -> val)
     _remove_neutral_from_fer2013_raw(fer2013_raw_out)   # <-- updated to use val
     print(f"Mirrored FER2013 into: {fer2013_raw_out}")
 
-    # ---- FERPlus build (from local labels csv + FER2013 pixels)
+    # FERPlus build (from local labels csv + FER2013 pixels)
     ferplus_labels_csv = _find_ferplus_labels_csv(project_main)
     print(f"Using FERPlus labels CSV: {ferplus_labels_csv}")
 
     ferplus_out = sources_dir / "ferplus"
     _write_ferplus_images(fer_rows, fer2013_labels_by_index, ferplus_labels_csv, ferplus_out)
 
-    # ---- RAF-DB
+    # RAF-DB
     _prepare_rafdb_from_drive_files(sources_dir, overwrite=True)
 
     # cleanup fer tmp

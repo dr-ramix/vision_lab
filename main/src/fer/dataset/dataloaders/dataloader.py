@@ -9,9 +9,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 
-# --------------------------------------------------
-# Feste, explizite Klassen-Zuordnung (NICHT ändern)
-# --------------------------------------------------
 CLASS_ORDER = [
     "anger",      # 0
     "disgust",    # 1
@@ -36,20 +33,16 @@ def _build_transform_train():
     return transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
 
-        # leichter Gaussian Blur (Motion-Blur-Ersatz)
         transforms.RandomApply(
             [transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 1.0))],
             p=0.15,
         ),
-
-        # Kontrast-Jitter:
-        # contrast=0.25 -> Faktor in [0.75, 1.25]
         transforms.RandomApply(
             [transforms.ColorJitter(contrast=0.25)],
             p=0.30,
         ),
 
-        transforms.ToTensor(),  # -> (C,H,W), float32, [0,1]
+        transforms.ToTensor(),  
     ])
 
 
@@ -60,14 +53,6 @@ def _build_transform_eval():
 
 
 def _remap_dataset_labels(ds: datasets.ImageFolder) -> None:
-    """
-    Erzwingt CLASS_TO_IDX für ein ImageFolder-Dataset.
-    Überschreibt:
-      - class_to_idx
-      - classes
-      - samples / targets
-    """
-    # Original mapping (alphabetisch)
     old_class_to_idx = ds.class_to_idx
 
     # Sanity-Check
@@ -96,14 +81,7 @@ def build_dataloaders(
     num_workers: int = 4,
     pin_memory: bool = True,
 ) -> DataLoaders:
-    """
-    images_root muss zeigen auf:
-      images_mtcnn_cropped_norm/
-        train/<class>/*
-        val/<class>/*
-        test/<class>/*
-    """
-
+    
     images_root = Path(images_root)
 
     train_tf = _build_transform_train()
@@ -151,10 +129,6 @@ def build_dataloaders(
         class_to_idx=CLASS_TO_IDX,
     )
 
-
-# --------------------------------------------------
-# Quick Sanity Check
-# --------------------------------------------------
 def main_quickcheck():
     project_root = Path(__file__).resolve().parents[3]
     images_root = project_root / "src" / "fer" / "dataset" / "standardized" / "images_mtcnn_cropped_norm"

@@ -93,13 +93,13 @@ def run_preprocessing(
                 for r in results:
                     crop_bgr = pil_rgb_to_bgr_uint8(r.crop)  # PIL RGB -> BGR u8
 
-                    # ✅ wie vorher: auf 64x64 bringen (nur Resize, ohne BasicImageProcessor)
+                    # 64x64 
                     crop_bgr = resize_bgr_uint8(crop_bgr, target_size=target_size)
 
-                    # 1) PNG speichern: BGR u8
+                    # PNG speichern: BGR u8
                     png_bgr_u8 = crop_bgr
 
-                    # 2) NPY speichern: float32 [0,1] in RGB
+                    # NPY speichern: float32 [0,1] in RGB
                     crop_rgb_u8 = bgr_to_rgb_uint8(crop_bgr)
                     npy_rgb_float = to_float01_rgb(crop_rgb_u8)
 

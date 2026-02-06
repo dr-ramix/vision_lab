@@ -8,11 +8,9 @@ import hashlib
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
-# Standard-Klassen (genau deine 6)
 STD_CLASSES = ["anger", "disgust", "fear", "happiness", "sadness", "surprise"]
 
 
-# ------------------ basic helpers ------------------
 def safe_mkdir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
@@ -22,7 +20,6 @@ def is_img(p: Path) -> bool:
 
 
 def _find_child_dir_ci(parent: Path, wanted: str) -> Path | None:
-    """Find direct child directory by name, case-insensitive (Linux-safe)."""
     w = wanted.lower()
     if not parent.exists():
         return None
@@ -33,15 +30,12 @@ def _find_child_dir_ci(parent: Path, wanted: str) -> Path | None:
 
 
 def _find_first_dir_ci(parent: Path, names: list[str]) -> Path | None:
-    """Try multiple directory names (case-insensitive) and return first match."""
     for n in names:
         d = _find_child_dir_ci(parent, n)
         if d is not None:
             return d
     return None
 
-
-# ------------------ label mapping (KEEP your synonyms!) ------------------
 def normalize_label(name: str) -> str | None:
     key = name.strip().lower()
     synonyms = {
@@ -91,12 +85,7 @@ def normalize_label(name: str) -> str | None:
     return synonyms.get(key, key if key in STD_CLASSES else None)
 
 
-# ------------------ deterministic content hashing ------------------
 def file_md5(path: Path, cache: dict[Path, str]) -> str:
-    """
-    Deterministic across machines for identical files:
-    hash is derived from file content (NOT from absolute path).
-    """
     if path in cache:
         return cache[path]
     h = hashlib.md5()
@@ -108,18 +97,7 @@ def file_md5(path: Path, cache: dict[Path, str]) -> str:
     return digest
 
 
-# ------------------ layout detection (supports validation for FERPlus) ------------------
 def detect_layout(dataset_root: Path):
-    """
-    Return:
-      ("split", train_dir, test_dir, val_dir_or_None)
-      ("unsplit", root, None, None)
-
-    Detected case-insensitive:
-      train: train | training
-      test: test | testing
-      val: validation | val | valid
-    """
     train_dir = _find_first_dir_ci(dataset_root, ["train", "training"])
     test_dir = _find_first_dir_ci(dataset_root, ["test", "testing"])
     val_dir = _find_first_dir_ci(dataset_root, ["validation", "val", "valid"])
@@ -130,17 +108,11 @@ def detect_layout(dataset_root: Path):
     return ("unsplit", dataset_root, None, None)
 
 
-# ------------------ collecting ------------------
 def collect_class_images(root: Path):
-    """
-    Expects root/<label>/**.jpg ...
-    Returns dict std_label -> [paths]
-    """
     out = {c: [] for c in STD_CLASSES}
     if not root or not root.exists():
         return out
 
-    # deterministic order of class dirs
     for sub in sorted(root.iterdir(), key=lambda x: x.name.lower()):
         if not sub.is_dir():
             continue
@@ -149,24 +121,18 @@ def collect_class_images(root: Path):
             continue
 
         files = [p for p in sub.rglob("*") if is_img(p)]
-        # deterministic order independent of filesystem traversal
+
         files.sort(key=lambda p: (p.name.lower(), str(p).lower()))
         out[mapped].extend(files)
 
     return out
 
 
-# ------------------ deterministic splitting ------------------
 def val_from_train_deterministic(
     train_by_class: dict[str, list[Path]],
     val_frac: float,
     content_hash_cache: dict[Path, str],
 ):
-    """
-    Guaranteed same val selection on every machine, as long as files are identical:
-    - sort each class by (content_md5, filename)
-    - take first round(n * val_frac) as val
-    """
     out = {"train": {}, "val": {}}
     for cls, paths in train_by_class.items():
         paths = list(paths)
@@ -183,11 +149,6 @@ def stratified_split_deterministic(
     ratios: tuple[float, float, float],
     content_hash_cache: dict[Path, str],
 ):
-    """
-    Deterministic split for "unsplit" datasets:
-    - sort each class by (content_md5, filename)
-    - slice by ratios into train/val/test
-    """
     split = {"train": {}, "val": {}, "test": {}}
     r_train, r_val, r_test = ratios
 
@@ -206,7 +167,6 @@ def stratified_split_deterministic(
     return split
 
 
-# ------------------ writing images_raw ------------------
 def stable_name(prefix: str, src: Path, content_hash_cache: dict[Path, str]):
     """
     Stable unique filename so multiple datasets can coexist AND be identical across machines.
@@ -258,7 +218,6 @@ def write_split_images(
     return written
 
 
-# ------------------ main ------------------
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seed", type=int, default=42, help="Kept for manifest/backward compatibility (not used for split).")
@@ -294,9 +253,6 @@ def main():
     safe_mkdir(out_raw)
     safe_mkdir(splits_root)
 
-    # ONLY these datasets now:
-    # - RAFDB is folder "rafdb" (no hyphen), contains meta/train/test (ignore meta automatically)
-    # - FERPlus has train/test/validation (use validation fully)
     datasets = ["rafdb", "ferplus"]
 
     manifest = {

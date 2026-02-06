@@ -62,7 +62,6 @@ class BasicImageProcessor:
 
     @staticmethod
     def gray_to_3ch(gray_u8: np.ndarray) -> np.ndarray:
-        """(H,W) -> (H,W,3) durch 3x Stack (identische Kanäle)."""
         # Option 1: np.stack
         return np.stack([gray_u8, gray_u8, gray_u8], axis=-1)
         # Option 2 (gleichwertig): cv2.cvtColor(gray_u8, cv2.COLOR_GRAY2BGR)
@@ -100,7 +99,7 @@ class BasicImageProcessor:
         self,
         result: BasicProcessResult,
         out_path: Union[str, Path],
-        save_rgb: bool = True,  # <- NEU: standardmäßig 3-kanalig speichern
+        save_rgb: bool = True,  
     ) -> Path:
         out_path = Path(out_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)

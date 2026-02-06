@@ -12,9 +12,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 
-# ============================================================
-# Class mapping (fixed order)
-# ============================================================
 CLASS_ORDER: List[str] = [
     "anger",      # 0
     "disgust",    # 1
@@ -26,9 +23,6 @@ CLASS_ORDER: List[str] = [
 CLASS_TO_IDX: Dict[str, int] = {c: i for i, c in enumerate(CLASS_ORDER)}
 
 
-# ============================================================
-# Small container to match other loaders (dls.train/val/test)
-# ============================================================
 @dataclass
 class _DLS:
     train: DataLoader
@@ -37,9 +31,6 @@ class _DLS:
     class_to_idx: Dict[str, int]
 
 
-# ============================================================
-# Re-usable augmentation bits
-# ============================================================
 class AddGaussianNoise(torch.nn.Module):
     def __init__(self, sigma_range=(0.08, 0.12), p: float = 0.25):
         super().__init__()
@@ -109,21 +100,8 @@ def _read_stats(stats_json: Path) -> Tuple[List[float], List[float], Tuple[int, 
     return mean, std, target_size
 
 
-# ============================================================
-# resolve paths given images_root = ".../standardized"
-# ============================================================
+
 def _resolve_grey_paths(standardized_root: Path) -> Tuple[Path, Path]:
-    """
-    User contract:
-      images_root passed in from registry/settings is:
-        .../main/src/fer/dataset/standardized
-
-    We must find:
-      npy_root   = standardized_root/only_mtcnn_cropped/grey/npy
-      stats_json = standardized_root/only_mtcnn_cropped/grey/dataset_stats_train.json
-
-    Also supports the case where someone accidentally passes already the npy_root.
-    """
     standardized_root = Path(standardized_root)
 
     # case A: caller already passes ".../only_mtcnn_cropped/grey/npy"
@@ -138,9 +116,7 @@ def _resolve_grey_paths(standardized_root: Path) -> Tuple[Path, Path]:
     return npy_root, stats_json
 
 
-# ============================================================
-# Dataset
-# ============================================================
+
 class NpyFolderDataset(Dataset):
     def __init__(
         self,
@@ -211,12 +187,9 @@ class NpyFolderDataset(Dataset):
         return x, y
 
 
-# ============================================================
-# Public builder (matches registry expectation)
-# ============================================================
 def build_dataloaders(
     *,
-    images_root: Path,              # NOW expected: .../standardized
+    images_root: Path,             
     batch_size: int = 64,
     num_workers: int = 4,
     pin_memory: bool = True,

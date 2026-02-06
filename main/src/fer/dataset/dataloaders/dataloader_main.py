@@ -11,9 +11,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
 
-# --------------------------------------------------
-# Feste, explizite Klassen-Zuordnung (NICHT ändern)
-# --------------------------------------------------
 CLASS_ORDER = [
     "anger",      # 0
     "disgust",    # 1
@@ -33,10 +30,6 @@ class DataLoaders:
     class_to_idx: Dict[str, int]
 
 
-# --------------------------------------------------
-# Augmentations (train only)  -- UNVERÄNDERT behalten
-# p<1 => nicht jedes Bild wird augmentiert
-# --------------------------------------------------
 class AddGaussianNoise(torch.nn.Module):
     def __init__(self, sigma_range=(0.08, 0.12), p: float = 0.25):
         super().__init__()
@@ -48,20 +41,18 @@ class AddGaussianNoise(torch.nn.Module):
             return x
         sigma = torch.empty(1).uniform_(self.sigma_range[0], self.sigma_range[1]).item()
         noise = torch.randn_like(x) * sigma
-        # clamp(0,1) ist hier korrekt, weil wir VOR Augmentations in [0,1] gehen
+        # clamp(0,1) weil wir vor Augmentations in [0,1] gehen
         return (x + noise).clamp(0.0, 1.0)
 
 
 def _build_transform_train():
-    # ORIGINAL wie bei dir
     return transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
 
-        # Rotation ≤ 15° + Translation wenige Pixel
         transforms.RandomApply(
             [transforms.RandomAffine(
                 degrees=15,
-                translate=(0.02, 0.02),  # ~ wenige Pixel je nach Bildgröße
+                translate=(0.02, 0.02), 
                 fill=0
             )],
             p=0.35,
@@ -88,11 +79,6 @@ def _build_transform_eval():
     return transforms.Compose([])
 
 
-# --------------------------------------------------
-# Stats load
-# Erwartet: images_root/dataset_stats_train.json
-# mit Keys: {"mean":[...], "std":[...]}
-# --------------------------------------------------
 def _load_stats(stats_path: Path) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
     if not stats_path.exists():
         raise FileNotFoundError(
@@ -107,14 +93,6 @@ def _load_stats(stats_path: Path) -> tuple[tuple[float, float, float], tuple[flo
         raise ValueError(f"Expected mean/std length 3, got mean={mean}, std={std}")
     return mean, std
 
-
-# --------------------------------------------------
-# Helper: npy -> Tensor CHW float32 (OHNE clamp)
-# - uint8 -> [0,1]
-# - float:
-#   - wenn es wie 0..255 aussieht -> /255
-#   - sonst unverändert (kann [0,1] oder z-score sein)
-# --------------------------------------------------
 def _as_chw_tensor(arr: np.ndarray) -> torch.Tensor:
     arr = np.asarray(arr)
     x = torch.from_numpy(arr).float()
@@ -122,13 +100,12 @@ def _as_chw_tensor(arr: np.ndarray) -> torch.Tensor:
     if arr.dtype == np.uint8:
         x = x / 255.0
     else:
-        # float: wenn max sehr groß, ist es praktisch sicher 0..255-like
         if x.numel() > 0 and float(x.max()) > 10.0:
             x = x / 255.0
 
     # shape -> CHW
     if x.ndim == 2:
-        x = x.unsqueeze(0)  # 1xHxW
+        x = x.unsqueeze(0)  
     elif x.ndim == 3:
         # HWC -> CHW
         if x.shape[-1] in (1, 3) and x.shape[0] not in (1, 3):
@@ -137,23 +114,13 @@ def _as_chw_tensor(arr: np.ndarray) -> torch.Tensor:
     else:
         raise ValueError(f"Unsupported npy shape: {tuple(x.shape)}")
 
-    # wenn 1 Kanal -> auf 3 Kanäle bringen (weil mean/std 3 Werte haben)
     if x.shape[0] == 1:
         x = x.repeat(3, 1, 1)
 
     return x
 
 
-# --------------------------------------------------
-# Core: z-score <-> [0,1] Brücke, damit Augmentations korrekt bleiben
-# --------------------------------------------------
 class To01ForAug(torch.nn.Module):
-    """
-    Macht Input "augmentations-safe":
-    - wenn Input schon [0,1] aussieht: passt durch
-    - wenn Input z-score aussieht (z.B. min<0 oder max>1): unnormalize via x*std+mean
-    Ergebnis wird auf [0,1] geclamped (damit ColorJitter/Noise etc. sinnvoll sind).
-    """
     def __init__(self, mean, std, eps: float = 1e-6):
         super().__init__()
         self.register_buffer("mean", torch.tensor(mean, dtype=torch.float32).view(3, 1, 1))
@@ -175,7 +142,6 @@ class To01ForAug(torch.nn.Module):
 
 
 class NormalizeFrom01(torch.nn.Module):
-    """[0,1] -> z-score (x-mean)/std"""
     def __init__(self, mean, std, eps: float = 1e-6):
         super().__init__()
         self.register_buffer("mean", torch.tensor(mean, dtype=torch.float32).view(3, 1, 1))
@@ -188,11 +154,6 @@ class NormalizeFrom01(torch.nn.Module):
 
 
 class NormalizeIfNeeded(torch.nn.Module):
-    """
-    Eval-Pfad:
-    - wenn Input schon z-score aussieht: passt durch
-    - wenn Input [0,1] ist: normalisieren
-    """
     def __init__(self, mean, std, eps: float = 1e-6):
         super().__init__()
         self.register_buffer("mean", torch.tensor(mean, dtype=torch.float32).view(3, 1, 1))
@@ -203,37 +164,27 @@ class NormalizeIfNeeded(torch.nn.Module):
         xmin = float(x.min()) if x.numel() > 0 else 0.0
         xmax = float(x.max()) if x.numel() > 0 else 1.0
 
-        # Wenn eindeutig z-score (z.B. negative Werte), nicht anfassen
         if xmin < -1e-3 or xmax > 1.0 + 1e-3:
             return x
 
-        # sonst: [0,1] -> z-score
         std = torch.clamp(self.std, min=self.eps)
         return (x - self.mean) / std
 
 
 def _build_train_pipeline(mean, std):
-    # z-score -> [0,1] -> ORIGINAL AUGS -> z-score
     return transforms.Compose([
         To01ForAug(mean, std),
-        _build_transform_train(),     # deine originalen random augmentations
+        _build_transform_train(),    
         NormalizeFrom01(mean, std),
     ])
 
 
 def _build_eval_pipeline(mean, std):
-    # keine random augments; nur sicherstellen, dass output z-score ist
     return transforms.Compose([
         NormalizeIfNeeded(mean, std),
     ])
 
 
-# --------------------------------------------------
-# NPY Dataset
-# Erwartete Struktur:
-#   <root>/npy/<split>/<emotion>/*.npy
-# z.B. images_mtcnn_cropped/npy/test/<emotion>/abc.npy
-# --------------------------------------------------
 class NpyEmotionFolder(Dataset):
     def __init__(self, split_dir: Path, transform=None):
         self.split_dir = Path(split_dir)

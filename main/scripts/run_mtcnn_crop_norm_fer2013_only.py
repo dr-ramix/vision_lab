@@ -44,11 +44,11 @@ def run_preprocessing(
     images_raw_root: Path,
     out_root: Path,
     overwrite_outputs: bool = True,
-    # --- MTCNN Einstellungen ---
+    # MTCNN Einstellungen
     keep_all: bool = True,
     min_prob: float = 0.0,
     width_half: float = 1.3,
-    # --- Basic Processing Einstellungen ---
+    # Basic Processing Einstellungen 
     target_size=(64, 64),
     ksize: int = 7,
     sigma_floor: float = 10.0,
@@ -106,12 +106,8 @@ def run_preprocessing(
                     crop_bgr = pil_rgb_to_bgr_uint8(r.crop)
                     proc = basic.process_bgr(crop_bgr)
 
-                    # proc.normalized_gray_vis: (H,W) uint8 (vis), already normalized output
-                    # 1) PNG speichern: als 3ch (BGR) damit cv2.imwrite korrekt ist
                     png_bgr_3ch = gray_to_3ch_bgr_u8(proc.normalized_gray_vis)
 
-                    # 2) NPY speichern: float32 [0,1] mit RGB channel order
-                    #    Da es grau ist, sind R=G=B identisch, aber wir liefern explizit RGB.
                     png_rgb_3ch_u8 = bgr_to_rgb_uint8(png_bgr_3ch)
                     npy_rgb_float = to_float01_rgb(png_rgb_3ch_u8)  # (H,W,3), float32 in [0,1]
 

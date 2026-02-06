@@ -1,7 +1,3 @@
-# src/fer/pre_processing/mtcnn_cropper.py
-# Funktionalität entspricht deinem mtcnn-code (Rotation A/B wählen + Paper-Crop).
-# pip install facenet-pytorch pillow torch torchvision opencv-python
-
 from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,15 +22,6 @@ class FaceCropResult:
 
 
 class MTCNNFaceCropper:
-    """
-    Single-image MTCNN pipeline:
-      - detect faces + eye landmarks
-      - rotate using eye line; tries both -eye_angle and +eye_angle
-        and picks the one that makes eyes most horizontal (like your code)
-      - paper crop using alpha from eye landmarks
-      - returns crops (multiple faces possible)
-    """
-
     def __init__(
         self,
         keep_all: bool = True,
@@ -72,7 +59,7 @@ class MTCNNFaceCropper:
             M,
             (w, h),
             flags=cv2.INTER_CUBIC,
-            borderMode=cv2.BORDER_REPLICATE,  # wie dein Code: keine schwarzen Lücken
+            borderMode=cv2.BORDER_REPLICATE,  # keine schwarzen Lücken
         )
 
         pts = np.array(points, dtype=np.float32)  # (N,2)
@@ -93,10 +80,6 @@ class MTCNNFaceCropper:
         return math.degrees(math.atan2(dy, dx))
 
     def process_pil(self, img: Image.Image) -> List[FaceCropResult]:
-        """
-        Input: PIL.Image (RGB oder wird intern nicht erzwungen; empfehlung: RGB)
-        Output: Liste an FaceCropResult (kann leer sein)
-        """
         if img.mode != "RGB":
             img = img.convert("RGB")
 
@@ -105,7 +88,7 @@ class MTCNNFaceCropper:
         if boxes is None or lms is None:
             return []
 
-        # probs kann None sein -> wie dein Code: alles akzeptieren
+        # probs kann None sein -> alles akzeptieren
         if probs is None:
             probs = [1.0] * len(lms)
 
@@ -118,7 +101,7 @@ class MTCNNFaceCropper:
             left_eye = tuple(lm[0])
             right_eye = tuple(lm[1])
 
-            # wie dein Code: sicherstellen, dass left_eye links im Bild liegt
+            # sicherstellen, dass left_eye links im Bild liegt
             if left_eye[0] > right_eye[0]:
                 left_eye, right_eye = right_eye, left_eye
 
@@ -143,7 +126,7 @@ class MTCNNFaceCropper:
             )
             res_b = abs(self._angle_from_pts(l_b, r_b))
 
-            # wie dein Code: nimm die Variante, die die Augenlinie am horizontalsten macht
+            # nimmt die Variante, die die Augenlinie am horizontalsten macht
             if res_a <= res_b:
                 rot_img, rot_left, rot_right = rot_img_a, l_a, r_a
                 used = "A(-eye_angle)"
@@ -153,7 +136,6 @@ class MTCNNFaceCropper:
                 used = "B(+eye_angle)"
                 residual = res_b
 
-            # Paper-Crop nach Rotation
             mx = (rot_left[0] + rot_right[0]) / 2.0
             my = (rot_left[1] + rot_right[1]) / 2.0
             alpha = math.hypot(rot_right[0] - mx, rot_right[1] - my)
@@ -200,10 +182,7 @@ class MTCNNFaceCropper:
         base_stem: str,
         suffix_ext: str = ".jpg",
     ) -> List[Path]:
-        """
-        Speichert Ergebnisse 1:1 wie dein Naming-Schema:
-          <stem>_face{i}_p{prob}.jpg
-        """
+        
         out_dir = Path(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
 
