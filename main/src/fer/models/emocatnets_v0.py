@@ -1,16 +1,10 @@
 """
-EmoCatNets v0 (64x64 FER)  —  NO STN
-Key defaults:
-- drop_path_rate: tiny 0.15, small 0.20, base 0.25
-- transformer attn_dropout: 0.0
-- transformer proj_dropout: 0.10
+EmoCatNets v0 (64x64 FER) — NO STN
 
-Downsampling plan:
-  stem: 64 -> 64   (no downsampling)
-  down1: 64 -> 32
-  down2: 32 -> 16
-  down3: 16 ->  8
-  stage4 (relative transformer): 8x8 tokens (64)
+Requested change:
+- Keep SE layers, but REMOVE the SE after stage4:
+  - remove self.se4 from __init__
+  - remove x = self.se4(x) from forward
 """
 
 from __future__ import annotations
@@ -240,54 +234,12 @@ class EmoCatNetConfig:
 
 
 EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
-    "nano": EmoCatNetConfig(
-        depths=(3, 3, 6, 2),
-        dims=(64, 128, 256, 512),
-        drop_path_rate=0.06,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.00,
-    ),
-    "tiny": EmoCatNetConfig(
-        depths=(3, 3, 9, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.10,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.02,
-    ),
-    "small": EmoCatNetConfig(
-        depths=(3, 3, 15, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.15,
-        num_heads=8,
-        attn_dropout=0.02,
-        proj_dropout=0.05,
-    ),
-    "base": EmoCatNetConfig(
-        depths=(3, 3, 18, 2),
-        dims=(128, 256, 512, 1024),
-        drop_path_rate=0.20,
-        num_heads=8,
-        attn_dropout=0.05,
-        proj_dropout=0.08,
-    ),
-    "large": EmoCatNetConfig(
-        depths=(3, 3, 27, 2),
-        dims=(192, 384, 768, 1536),
-        drop_path_rate=0.30,
-        num_heads=8,
-        attn_dropout=0.06,
-        proj_dropout=0.10,
-    ),
-    "xlarge": EmoCatNetConfig(
-        depths=(3, 3, 27, 2),
-        dims=(256, 512, 1024, 2048),
-        drop_path_rate=0.40,
-        num_heads=8,
-        attn_dropout=0.08,
-        proj_dropout=0.12,
-    ),
+    "nano": EmoCatNetConfig(depths=(3, 3, 6, 2), dims=(64, 128, 256, 512), drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
+    "tiny": EmoCatNetConfig(depths=(3, 3, 9, 2), dims=(96, 192, 384, 768), drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
+    "small":EmoCatNetConfig(depths=(3, 3, 15, 2),dims=(96, 192, 384, 768), drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
+    "base": EmoCatNetConfig(depths=(3, 3, 18, 2),dims=(128, 256, 512, 1024),drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
+    "large":EmoCatNetConfig(depths=(3, 3, 27, 2),dims=(192, 384, 768, 1536),drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
+    "xlarge":EmoCatNetConfig(depths=(3, 3, 27, 2),dims=(256, 512, 1024, 2048),drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
 }
 
 
@@ -299,13 +251,6 @@ class EmoCatNetsV0(nn.Module):
     """
     EmoCatNets v0:
       stem (no downsampling) -> stage1 -> down1 -> stage2 -> down2 -> stage3 -> down3 -> stage4(rel) -> head
-
-    64x64:
-      stem: 64->64
-      down1: 64->32
-      down2: 32->16
-      down3: 16->8
-      stage4: 8x8 tokens
     """
     def __init__(
         self,
@@ -327,13 +272,11 @@ class EmoCatNetsV0(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # Stem (NO downsampling): 64 -> 64
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1),
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
         )
 
-        # Downsampling: 64->32->16->8
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
             nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
@@ -347,39 +290,34 @@ class EmoCatNetsV0(nn.Module):
             nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),
         )
 
-        # SE after each stage
+        # SE after stages 1-3 only (stage4 SE removed)
         self.se1 = SELayer(d0, reduction=se_reduction)
         self.se2 = SELayer(d1, reduction=se_reduction)
         self.se3 = SELayer(d2, reduction=se_reduction)
-        self.se4 = SELayer(d3, reduction=se_reduction)
+        # self.se4 removed
 
-        # Stochastic depth schedule across all blocks
         total_blocks = sum(depths)
         dp_rates: List[float] = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
 
-        # Stage 1 @64x64
         self.stage1 = nn.Sequential(*[
             ConvNextBlock(d0, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[0])
         ])
         cur += depths[0]
 
-        # Stage 2 @32x32
         self.stage2 = nn.Sequential(*[
             ConvNextBlock(d1, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[1])
         ])
         cur += depths[1]
 
-        # Stage 3 @16x16
         self.stage3 = nn.Sequential(*[
             ConvNextBlock(d2, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[2])
         ])
         cur += depths[2]
 
-        # Stage 4 @8x8 tokens (64)
         self.stage4 = nn.Sequential(*[
             RelativeTransformerBlock(
                 dim=d3,
@@ -397,7 +335,6 @@ class EmoCatNetsV0(nn.Module):
         self.final_ln = nn.LayerNorm(d3, eps=1e-6)
         self.head = nn.Linear(d3, num_classes)
 
-        # Init
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 trunc_normal_(m.weight, std=0.02)
@@ -409,28 +346,28 @@ class EmoCatNetsV0(nn.Module):
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stem(x)          # (B, d0, 64, 64)
+        x = self.stem(x)
         x = self.stage1(x)
         x = self.se1(x)
 
-        x = self.downsample_layer_1(x)  # (B, d1, 32, 32)
+        x = self.downsample_layer_1(x)
         x = self.stage2(x)
         x = self.se2(x)
 
-        x = self.downsample_layer_2(x)  # (B, d2, 16, 16)
+        x = self.downsample_layer_2(x)
         x = self.stage3(x)
         x = self.se3(x)
 
-        x = self.downsample_layer_3(x)  # (B, d3, 8, 8)
+        x = self.downsample_layer_3(x)
 
         b, c, h, w = x.shape
         if h != 8 or w != 8:
             raise ValueError(f"Expected 8x8 before stage4, got {h}x{w}. Check input size/downsampling.")
 
-        tokens = x.flatten(2).transpose(1, 2)  # (B, 64, d3)
+        tokens = x.flatten(2).transpose(1, 2)
         tokens = self.stage4(tokens)
         x = tokens.transpose(1, 2).reshape(b, c, h, w)
-        x = self.se4(x)
+        # x = self.se4(x)  # removed
 
         feat = x.mean(dim=(-2, -1))
         feat = self.final_ln(feat)

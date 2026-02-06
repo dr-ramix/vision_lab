@@ -1,16 +1,10 @@
 """
-EmoCatNets (v0) (64x64 FER)
+EmoCatNets (64x64 FER)
 
-Same as your v0 code, but STN is made RESIDUAL (gated) while keeping the AMP/NaN-stable STN internals:
-
-STN FIXES (for AMP + NaN stability):
-1) STN runs in FP32 under AMP (autocast disabled inside STN).
-2) STN predicts a small bounded delta around identity: theta = I + scale*tanh(delta).
-3) Global init no longer breaks STN identity: after global init, we re-zero the STN last layer.
-
-RESIDUAL STN:
-x_out = (1 - alpha) * x + alpha * warp(x)
-(alpha is sigmoid(alpha_logit) so always in (0,1) without clamp dead-zones)
+Requested changes:
+1) Remove SE after stage4 (remove se4 module + remove x = self.se4(x)).
+2) Replace SE with CBAM in other places (stage1/2/3): se1,se2,se3 -> cbam1,cbam2,cbam3.
+   (Stage4 gets no attention module after it.)
 """
 
 import math
@@ -166,33 +160,50 @@ class ResidualSTN(nn.Module):
         self.alpha_logit = nn.Parameter(alpha_logit.to(dtype=torch.float32))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        xw = self.stn(x)
-        a = torch.sigmoid(self.alpha_logit).to(dtype=x.dtype)
-        return (1.0 - a) * x + a * xw
+        b = x.size(0)
+        y = self.localization(x).view(b, -1)
+        theta = self.fc(y).view(b, 2, 3)
+        grid = F.affine_grid(theta, size=x.size(), align_corners=False)
+        return F.grid_sample(x, grid, align_corners=False)
 
 
-class SELayer(nn.Module):
-    """Squeeze-and-Excitation (channel attention)."""
-    def __init__(self, channels: int, reduction: int = 16):
+# ============================================================
+# CBAM (replacing SE for stages 1-3)
+# ============================================================
+
+class CBAM(nn.Module):
+    def __init__(self, channels: int, reduction: int = 16, spatial_kernel: int = 7):
         super().__init__()
         hidden = max(1, channels // reduction)
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Sequential(
+
+        self.mlp = nn.Sequential(
             nn.Linear(channels, hidden, bias=False),
             nn.GELU(),
             nn.Linear(hidden, channels, bias=False),
-            nn.Sigmoid()
         )
+        self.sigmoid = nn.Sigmoid()
+        self.spatial = nn.Conv2d(2, 1, kernel_size=spatial_kernel, padding=spatial_kernel // 2, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b, c, _, _ = x.size()
-        y = self.avg_pool(x).view(b, c)
-        y = self.fc(y).view(b, c, 1, 1)
-        return x * y
+        b, c, _, _ = x.shape
+
+        avg = F.adaptive_avg_pool2d(x, 1).view(b, c)
+        mx  = F.adaptive_max_pool2d(x, 1).view(b, c)
+        ca = self.mlp(avg) + self.mlp(mx)
+        ca = self.sigmoid(ca).view(b, c, 1, 1)
+        x = x * ca
+
+        avg_map = x.mean(dim=1, keepdim=True)
+        max_map = x.max(dim=1, keepdim=True).values
+        sa = torch.cat([avg_map, max_map], dim=1)
+        sa = self.sigmoid(self.spatial(sa))
+        x = x * sa
+        return x
 
 
 # ============================================================
 # Relative Attention (CoAtNet/Swin-style relative position bias)
+# Fixed grid size (8x8) for the last stage in this architecture.
 # Fixed grid size (8x8) for the last stage in this architecture.
 # ============================================================
 
@@ -265,15 +276,18 @@ class RelativeMHSA(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C = x.shape
         qkv = self.qkv(x)
+        qkv = self.qkv(x)
         qkv = qkv.reshape(B, T, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
         attn = attn + self.rpb().unsqueeze(0)
-
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
+        out = attn @ v
+        out = out.transpose(1, 2).reshape(B, T, C)
         out = attn @ v
         out = out.transpose(1, 2).reshape(B, T, C)
 
@@ -285,6 +299,7 @@ class RelativeMHSA(nn.Module):
 class RelativeTransformerBlock(nn.Module):
     """
     Pre-LN + Relative MHSA + MLP, with StochasticDepth.
+    Fixed token grid (H, W) at init time (here 8x8).
     Fixed token grid (H, W) at init time (here 8x8).
     """
     def __init__(
@@ -337,74 +352,23 @@ class EmoCatNetConfig:
     num_heads: int = 8
     attn_dropout: float = 0.0
     proj_dropout: float = 0.0
-    se_reduction: int = 16
+    cbam_reduction: int = 16  # replaces se_reduction
 
 
 EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
-    "nano": EmoCatNetConfig(
-        depths=(3, 3, 6, 2),
-        dims=(64, 128, 256, 512),
-        drop_path_rate=0.06,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.00,
-    ),
-    "tiny": EmoCatNetConfig(
-        depths=(3, 3, 9, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.10,
-        num_heads=8,
-        attn_dropout=0.00,
-        proj_dropout=0.02,
-    ),
-    "small": EmoCatNetConfig(
-        depths=(3, 3, 15, 2),
-        dims=(96, 192, 384, 768),
-        drop_path_rate=0.15,
-        num_heads=8,
-        attn_dropout=0.02,
-        proj_dropout=0.05,
-    ),
-    "base": EmoCatNetConfig(
-        depths=(3, 3, 18, 2),
-        dims=(128, 256, 512, 1024),
-        drop_path_rate=0.20,
-        num_heads=8,
-        attn_dropout=0.05,
-        proj_dropout=0.08,
-    ),
-    "large": EmoCatNetConfig(
-        depths=(3, 3, 27, 2),
-        dims=(192, 384, 768, 1536),
-        drop_path_rate=0.30,
-        num_heads=8,
-        attn_dropout=0.06,
-        proj_dropout=0.10,
-    ),
-    "xlarge": EmoCatNetConfig(
-        depths=(3, 3, 27, 2),
-        dims=(256, 512, 1024, 2048),
-        drop_path_rate=0.40,
-        num_heads=8,
-        attn_dropout=0.08,
-        proj_dropout=0.12,
-    ),
+    "nano": EmoCatNetConfig(depths=(3, 3, 6, 2),  dims=(64, 128, 256, 512),   drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
+    "tiny": EmoCatNetConfig(depths=(3, 3, 9, 2),  dims=(96, 192, 384, 768),   drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
+    "small":EmoCatNetConfig(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768),   drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
+    "base": EmoCatNetConfig(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
+    "large":EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
+    "xlarge":EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048),drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
 }
 
 
 class EmoCatNets(nn.Module):
     """
-    EmoCatNets (new downsampling plan):
-      residual STN (no downsampling) -> stem (no downsampling)
-      -> stage1(C) -> down1 -> stage2(C) -> down2 -> stage3(C) -> down3
-      -> stage4(T, relative) -> head
-
-    For 64x64:
-      stem: 64->64
-      down1: 64->32
-      down2: 32->16
-      down3: 16->8
-      stage4 attention: fixed 8x8 tokens (64)
+    EmoCatNets:
+      STN -> stem -> stage1(C) -> CBAM1 -> down1 -> stage2(C) -> CBAM2 -> down2 -> stage3(C) -> CBAM3 -> down3 -> stage4(T, relative) -> head
     """
     def __init__(
         self,
@@ -416,9 +380,7 @@ class EmoCatNets(nn.Module):
         layer_scale_init_value: float = 1e-6,
         head_init_scale: float = 1.0,
         stn_hidden: int = 32,
-        stn_delta_scale: float = 0.1,
-        stn_alpha_init: float = 0.15,
-        se_reduction: int = 16,
+        cbam_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.0,
         proj_dropout: float = 0.0,
@@ -429,67 +391,53 @@ class EmoCatNets(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        # Residual STN (no downsampling, only warps)
-        self.stn = ResidualSTN(
-            in_channels=in_channels,
-            hidden=stn_hidden,
-            delta_scale=stn_delta_scale,
-            alpha_init=stn_alpha_init,
-        )
+        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden)
 
-        # Stem (NO downsampling): 64 -> 64
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1),
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
         )
 
-        # Downsampling: 64->32->16->8 (ConvNeXt style: LN + k2,s2 conv)
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),  # 64->32
+            nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
         )
         self.downsample_layer_2 = nn.Sequential(
             LayerNorm(d1, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d1, d2, kernel_size=2, stride=2, padding=0),  # 32->16
+            nn.Conv2d(d1, d2, kernel_size=2, stride=2, padding=0),
         )
         self.downsample_layer_3 = nn.Sequential(
             LayerNorm(d2, eps=1e-6, data_format="channels_first"),
-            nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),  # 16->8
+            nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),
         )
 
-        # SE after each stage
-        self.se1 = SELayer(d0, reduction=se_reduction)
-        self.se2 = SELayer(d1, reduction=se_reduction)
-        self.se3 = SELayer(d2, reduction=se_reduction)
-        self.se4 = SELayer(d3, reduction=se_reduction)
+        # CBAM after stages 1-3, no attention module after stage4
+        self.cbam1 = CBAM(d0, reduction=cbam_reduction)
+        self.cbam2 = CBAM(d1, reduction=cbam_reduction)
+        self.cbam3 = CBAM(d2, reduction=cbam_reduction)
 
-        # Stochastic depth schedule across all blocks
         total_blocks = sum(depths)
         dp_rates: List[float] = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
 
-        # Stage 1 (C) @64x64
         self.stage1 = nn.Sequential(*[
             ConvNextBlock(d0, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[0])
         ])
         cur += depths[0]
 
-        # Stage 2 (C) @32x32
         self.stage2 = nn.Sequential(*[
             ConvNextBlock(d1, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[1])
         ])
         cur += depths[1]
 
-        # Stage 3 (C) @16x16
         self.stage3 = nn.Sequential(*[
             ConvNextBlock(d2, drop_path=dp_rates[cur + i], layer_scale_init_value=layer_scale_init_value)
             for i in range(depths[2])
         ])
         cur += depths[2]
 
-        # Stage 4 (T, relative) @8x8 tokens (64)
         self.stage4 = nn.Sequential(*[
             RelativeTransformerBlock(
                 dim=d3,
@@ -507,7 +455,6 @@ class EmoCatNets(nn.Module):
         self.final_ln = nn.LayerNorm(d3, eps=1e-6)
         self.head = nn.Linear(d3, num_classes)
 
-        # Init (ConvNeXt style)
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 trunc_normal_(m.weight, std=0.02)
@@ -524,35 +471,35 @@ class EmoCatNets(nn.Module):
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stn(x)              # (B, Cin, 64, 64)
+        x = self.stn(x)
 
-        x = self.stem(x)             # (B, d0, 64, 64)
+        x = self.stem(x)
         x = self.stage1(x)
-        x = self.se1(x)
+        x = self.cbam1(x)
 
-        x = self.downsample_layer_1(x)  # (B, d1, 32, 32)
+        x = self.downsample_layer_1(x)
         x = self.stage2(x)
-        x = self.se2(x)
+        x = self.cbam2(x)
 
-        x = self.downsample_layer_2(x)  # (B, d2, 16, 16)
+        x = self.downsample_layer_2(x)
         x = self.stage3(x)
-        x = self.se3(x)
+        x = self.cbam3(x)
 
-        x = self.downsample_layer_3(x)  # (B, d3, 8, 8)
+        x = self.downsample_layer_3(x)
 
-        # Relative attention on tokens (B, T=64, C=d3)
         b, c, h, w = x.shape
         if h != 8 or w != 8:
             raise ValueError(f"Expected 8x8 before stage4, got {h}x{w}. Check input size/downsampling.")
-        tokens = x.flatten(2).transpose(1, 2)   # (B, 64, d3)
+        tokens = x.flatten(2).transpose(1, 2)
         tokens = self.stage4(tokens)
         x = tokens.transpose(1, 2).reshape(b, c, h, w)
-        x = self.se4(x)
+        # no SE/CBAM after stage4
 
-        feat = x.mean(dim=(-2, -1))   # GAP -> (B, d3)
+        feat =ив = x.mean(dim=(-2, -1))   # GAP -> (B, d3)
         feat = self.final_ln(feat)
         logits = self.head(feat)
         return logits
+
 
 
 def emocatnets_fer(
@@ -587,9 +534,7 @@ def emocatnets_fer(
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,
         proj_dropout=cfg.proj_dropout if proj_dropout is None else proj_dropout,
         stn_hidden=stn_hidden,
-        stn_delta_scale=stn_delta_scale,
-        stn_alpha_init=stn_alpha_init,
-        se_reduction=cfg.se_reduction,
+        cbam_reduction=cfg.cbam_reduction,
     )
 
 
