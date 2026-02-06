@@ -73,22 +73,8 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py \
-  model=resnet18 \
-  transfer=true \
-  freeze_backbone=true \
-  epochs=30 \
-  bs=64 \
-  optimizer=adamw \
-  lr=1e-3 \
-  weight_decay=1e-4 \
-  scheduler=warmup_cosine \
-  warmup_epochs=3 \
-  amp=true \
-  grad_clip=1.0 \
-  class_weight=true \
-  label_smoothing=0.05 \
-  ema=true \
-  ema_decay=0.999 \
-  eval_with_ema=true \
-  early_stop=15
+python train.py dataloader=grey model=resnet18 epochs=300 bs=24 grad_accum=1 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
+    scheduler=warmup_cosine warmup_epochs=5 min_lr=3e-7 amp=true grad_clip=1.0 early_stop=300 \
+    class_weight=true label_smoothing=0.07 \
+    mix_prob=0.1 mixup_alpha=0.3 cutmix_alpha=0.4 \
+    ema=true ema_decay=0.9996 eval_with_ema=true

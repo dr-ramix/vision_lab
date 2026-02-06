@@ -73,19 +73,8 @@ echo "============================"
 # -----------------------------
 # Run training
 # -----------------------------
-python train.py \
-  model=efficientnetv2-s \
-  epochs=350 \
-  bs=128 \
-  optimizer=adamw \
-  lr=5e-4 \
-  weight_decay=5e-3 \
-  scheduler=cosine \
-  min_lr=1e-6 \
-  amp=true \
-  grad_clip=1.0 \
-  early_stop=80 \
-  label_smoothing=0.0 \
-  mix_prob=0.0 \
-  class_weight=false \
-  ema=false
+python train.py dataloader=grey model=efficientnetv2-s epochs=300 bs=24 grad_accum=1 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
+    scheduler=warmup_cosine warmup_epochs=5 min_lr=3e-7 amp=true grad_clip=1.0 early_stop=300 \
+    class_weight=true label_smoothing=0.07 \
+    mix_prob=0.1 mixup_alpha=0.3 cutmix_alpha=0.4 \
+    ema=true ema_decay=0.9996 eval_with_ema=true
