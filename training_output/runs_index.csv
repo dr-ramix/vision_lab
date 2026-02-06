@@ -205,4 +205,9 @@ run_id,model,best_val_f1,test_acc,user,created_at
 2026-01-26_02-07-38__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.7889933251600599,0.736340618336887,hosseinis,2026-01-26T09:52:09
 2026-01-26_10-15-47__emocatnetsv2fine_tiny__user-hosseinis__e30877,emocatnetsv2fine_tiny,accuracy,0.28088816237569814,0.2575959488272921,hosseinis,2026-01-26T10:23:11
 2026-01-25_13-28-29__convnext_base__user-hosseinis__e30877,convnext_base,accuracy,0.7441765427053535,0.7062233475479744,hosseinis,2026-01-26T12:27:38
+2026-02-02_00-40-14__resnet50__user-sallauka__e30877,resnet50,accuracy,0.8145422431557257,0.8325389948006933,sallauka,2026-02-02T11:52:26
+2026-02-02_07-26-34__resnet101__user-sallauka__e30877,resnet101,accuracy,0.813953488372093,0.8312391681109186,sallauka,2026-02-03T00:55:21
+2026-02-05_10-50-55__coatnetv2_tiny__user-sallauka__e30877,coatnetv2_tiny,accuracy,0.8189579040329703,0.8325389948006933,sallauka,2026-02-05T17:14:42
+2026-02-03_09-13-30__coatnetv2_base__user-sallauka__e30877,coatnetv2_base,accuracy,0.8189579040329703,0.8327556325823223,sallauka,2026-02-05T19:48:33
+2026-02-05_10-55-19__emonext_tiny__user-sallauka__e30877,emonext_tiny,accuracy,0.20370915513688548,0.11936741767764299,sallauka,2026-02-06T03:00:13
 2026-02-04_10-42-40__emocatnetsv2_small__user-usergpu__e30877,emocatnetsv2_small,accuracy,0.2868080094228504,0.04417496751840624,usergpu,2026-02-04T13:07:17

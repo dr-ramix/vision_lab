@@ -7,6 +7,7 @@ from fer.models.cnn_resnet18 import ResNet18FER
 from fer.models.cnn_vanilla import CNNVanilla
 from fer.models.coatnet import CoAtNet
 from fer.models.coatnetv2 import CoAtNetV2
+from fer.models.coatnetv3 import CoAtNetV3
 from fer.models.cnn_resnet50 import ResNet50FER
 from fer.models.convnext import convnextfer
 from fer.models.emonext import emonext_fer
@@ -248,6 +249,39 @@ register_model(
         inp_h=64,
         inp_w=64,
         config="coatnetv2-5",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
+
+register_model(
+    "coatnetv3_tiny",
+    lambda num_classes, in_channels=3, **_: CoAtNetV3(
+        inp_h=64,
+        inp_w=64,
+        config="coatnetv3-0",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
+
+register_model(
+    "coatnetv3_small",
+    lambda num_classes, in_channels=3, **_: CoAtNetV3(
+        inp_h=64,
+        inp_w=64,
+        config="coatnetv3-1",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        ),
+)
+
+register_model(
+    "coatnetv3_base",
+    lambda num_classes, in_channels=3, **_: CoAtNetV3(
+        inp_h=64,
+        inp_w=64,
+        config="coatnetv3-2",
         num_classes=num_classes,
         in_channels=in_channels,
         ),
