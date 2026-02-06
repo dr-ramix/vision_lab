@@ -1,6 +1,7 @@
 #!/bin/bash
 #!/bin/bash
 #SBATCH --job-name=mobilenetv2
+#SBATCH --exclusive
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=80:00:00

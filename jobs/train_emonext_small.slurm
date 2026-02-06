@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=emonext_small
+#SBATCH --exclusive
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=80:00:00

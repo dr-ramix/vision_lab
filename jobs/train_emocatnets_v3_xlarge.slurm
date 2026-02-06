@@ -2,7 +2,8 @@
 #SBATCH --job-name=emocatnets_v3_xlarge
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=55:00:00
+#SBATCH --time=60:00:00
+#SBATCH --exclusive
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
 

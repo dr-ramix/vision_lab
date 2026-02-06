@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=efficientnetv2-s
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=55:00:00
+#SBATCH --time=60:00:00
+#SBATCH --exclusive
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
 

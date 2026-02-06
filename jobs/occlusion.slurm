@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=xai_occlusion
+#SBATCH --exclusive
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=06:00:00
 #SBATCH --cpus-per-task=8

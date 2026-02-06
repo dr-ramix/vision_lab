@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=xai_layer_activation
+#SBATCH --exclusive
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=04:00:00
 #SBATCH --cpus-per-task=8

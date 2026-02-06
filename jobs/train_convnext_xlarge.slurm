@@ -1,5 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=convnext_xlarge
+#SBATCH --exclusive
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
 #SBATCH --time=80:00:00
