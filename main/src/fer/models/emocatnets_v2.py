@@ -1,14 +1,19 @@
 """
-EmoCatNets-v2 (64x64 FER) — NO STN + stem (NO residual stem)
+EmoCatNets-v2 (FER 64×64)
 
-Removed:
-- STNLayer
-- ResidualSTN
-- all STN args + factory flags
-- STN identity re-zero logic
+Hybrid ConvNeXt-style CNN + a small relative-position Transformer tail, designed for
+low-resolution facial expression recognition.
 
-Change requested:
-- Removed CBAM in stage 4 (no cbam4 module, no x = self.cbam4(x))
+Key design:
+- No STN (no geometric alignment / warping).
+- Stem keeps spatial size: 64×64 -> 64×64 (stride=1).
+- Three ConvNeXt convolutional stages (ConvNeXt v1-style block, no GRN).
+- CBAM attention after stage1–stage3 only (CBAM after stage4 is removed).
+- Stage4 is a tokenized 8×8 relative-attention Transformer (assumes 64×64 input).
+- Multi-scale head: concatenate global pooled features from 16×16 (stage3) and 8×8 (stage4).
+
+Backbone resolution flow (for 64×64 inputs):
+  64×64 (stem + stage1) -> 32×32 (down1 + stage2) -> 16×16 (down2 + stage3) -> 8×8 (down3 + stage4)
 """
 
 from __future__ import annotations
@@ -16,7 +21,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,12 +28,12 @@ from torchvision.ops import StochasticDepth
 from timm.layers import trunc_normal_
 
 
-# ============================================================
-# Core Blocks
-# ============================================================
+# ----------------------------
+# Normalization + ConvNeXt block
+# ----------------------------
 
 class LayerNorm(nn.Module):
-    """LayerNorm supporting channels_last (NHWC) and channels_first (NCHW)."""
+    """LayerNorm that supports channels_last (NHWC) and channels_first (NCHW)."""
     def __init__(self, normalized_shape: int, eps: float = 1e-6, data_format: str = "channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
@@ -53,11 +57,16 @@ class LayerNorm(nn.Module):
 
 
 class ConvNextBlock(nn.Module):
-    """ConvNeXt residual block."""
+    """
+    ConvNeXt v1-style residual block:
+      DWConv -> LN (NHWC) -> Linear(4x) -> GELU -> Linear -> LayerScale -> DropPath -> residual add
+    """
     def __init__(self, dim: int, drop_path: float = 0.0, layer_scale_init_value: float = 1e-6):
         super().__init__()
         self.depthwise_conv = nn.Conv2d(dim, dim, kernel_size=7, stride=1, padding=3, groups=dim)
-        self.layer_norm = nn.LayerNorm(dim, eps=1e-6)  # NHWC
+
+        # NHWC MLP path
+        self.layer_norm = nn.LayerNorm(dim, eps=1e-6)
         self.pointwise_conv1 = nn.Linear(dim, dim * 4)
         self.gelu = nn.GELU()
         self.pointwise_conv2 = nn.Linear(dim * 4, dim)
@@ -70,22 +79,26 @@ class ConvNextBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
+
         x = self.depthwise_conv(x)
-        x = x.permute(0, 2, 3, 1)  # NHWC
+        x = x.permute(0, 2, 3, 1)  # NCHW -> NHWC
+
         x = self.layer_norm(x)
         x = self.pointwise_conv1(x)
         x = self.gelu(x)
         x = self.pointwise_conv2(x)
+
         if self.gamma is not None:
             x = self.gamma * x
-        x = x.permute(0, 3, 1, 2)  # NCHW
+
+        x = x.permute(0, 3, 1, 2)  # NHWC -> NCHW
         x = self.droppath(x)
         return x + identity
 
 
-# ============================================================
-# CBAM
-# ============================================================
+# ----------------------------
+# CBAM attention (stage1–3)
+# ----------------------------
 
 class CBAM(nn.Module):
     def __init__(self, channels: int, reduction: int = 16, spatial_kernel: int = 7):
@@ -103,12 +116,14 @@ class CBAM(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, c, _, _ = x.shape
 
+        # Channel attention
         avg = F.adaptive_avg_pool2d(x, 1).view(b, c)
-        mx  = F.adaptive_max_pool2d(x, 1).view(b, c)
+        mx = F.adaptive_max_pool2d(x, 1).view(b, c)
         ca = self.mlp(avg) + self.mlp(mx)
         ca = self.sigmoid(ca).view(b, c, 1, 1)
         x = x * ca
 
+        # Spatial attention
         avg_map = x.mean(dim=1, keepdim=True)
         max_map = x.max(dim=1, keepdim=True).values
         sa = torch.cat([avg_map, max_map], dim=1)
@@ -117,9 +132,9 @@ class CBAM(nn.Module):
         return x
 
 
-# ============================================================
-# Relative Position Bias + Relative MHSA
-# ============================================================
+# ----------------------------
+# Relative position attention
+# ----------------------------
 
 class RelativePositionBias(nn.Module):
     def __init__(self, heads: int, height: int, width: int):
@@ -147,10 +162,10 @@ class RelativePositionBias(nn.Module):
         nn.init.trunc_normal_(self.relative_bias_table, std=0.02)
 
     def forward(self) -> torch.Tensor:
-        T = self.height * self.width
+        t = self.height * self.width
         idx = self.relative_position_index.view(-1)
         bias = self.relative_bias_table[idx]
-        bias = bias.view(T, T, self.heads).permute(2, 0, 1).contiguous()
+        bias = bias.view(t, t, self.heads).permute(2, 0, 1).contiguous()
         return bias
 
 
@@ -180,8 +195,8 @@ class RelativeMHSA(nn.Module):
         self.rpb = RelativePositionBias(heads=heads, height=height, width=width)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, C = x.shape
-        qkv = self.qkv(x).reshape(B, T, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
+        b, t, c = x.shape
+        qkv = self.qkv(x).reshape(b, t, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -190,18 +205,14 @@ class RelativeMHSA(nn.Module):
         attn = self.attn_drop(attn)
 
         out = attn @ v
-        out = out.transpose(1, 2).reshape(B, T, C)
+        out = out.transpose(1, 2).reshape(b, t, c)
         out = self.proj(out)
         out = self.proj_drop(out)
         return out
 
 
-# ============================================================
-# Conv Positional Encoding (CPE) + Transformer block
-# ============================================================
-
 class ConvPosEnc(nn.Module):
-    """Depthwise 3x3 conv positional encoding for (B, T, C) tokens on fixed HxW."""
+    """Depthwise 3×3 conv positional encoding for fixed H×W token grids."""
     def __init__(self, dim: int, height: int, width: int):
         super().__init__()
         self.h, self.w = height, width
@@ -215,7 +226,7 @@ class ConvPosEnc(nn.Module):
 
 
 class RelativeTransformerBlockV2(nn.Module):
-    """Pre-LN + (CPE + Rel-MHSA) + MLP, with StochasticDepth."""
+    """Pre-LN (CPE + relative MHSA) + MLP, with stochastic depth."""
     def __init__(
         self,
         dim: int,
@@ -259,12 +270,12 @@ class RelativeTransformerBlockV2(nn.Module):
         return x
 
 
-# ============================================================
-# Stem (NOT residual), NO downsampling: 64 -> 64
-# ============================================================
+# ----------------------------
+# Stem (keeps 64×64 spatial)
+# ----------------------------
 
 class Stem(nn.Module):
-    """Stem: Conv3x3(s1) -> LN(ch_first)."""
+    """Stem: 3×3 conv (stride=1) + LayerNorm (channels_first)."""
     def __init__(self, in_channels: int, out_channels: int):
         super().__init__()
         self.proj = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
@@ -276,10 +287,9 @@ class Stem(nn.Module):
         return x
 
 
-# ============================================================
-# Config / Sizes  (V2)
-# Config / Sizes  (V2)
-# ============================================================
+# ----------------------------
+# Config / Sizes
+# ----------------------------
 
 @dataclass(frozen=True)
 class EmoCatNetV2Config:
@@ -295,30 +305,36 @@ class EmoCatNetV2Config:
 
 
 EMOCATNETS_V2_SIZES: Dict[str, EmoCatNetV2Config] = {
-    "nano": EmoCatNetV2Config(depths=(3, 3, 6, 2),  dims=(64, 128, 256, 512),   drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
-    "tiny": EmoCatNetV2Config(depths=(3, 3, 9, 2),  dims=(96, 192, 384, 768),   drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
-    "small":EmoCatNetV2Config(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768),   drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
-    "base": EmoCatNetV2Config(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
-    "large":EmoCatNetV2Config(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
-    "xlarge":EmoCatNetV2Config(depths=(3, 3, 27, 2),dims=(256, 512, 1024, 2048),drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
+    "nano":  EmoCatNetV2Config(depths=(3, 3, 6, 2),  dims=(64, 128, 256, 512),   drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
+    "tiny":  EmoCatNetV2Config(depths=(3, 3, 9, 2),  dims=(96, 192, 384, 768),   drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
+    "small": EmoCatNetV2Config(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768),   drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
+    "base":  EmoCatNetV2Config(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
+    "large": EmoCatNetV2Config(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
+    "xlarge":EmoCatNetV2Config(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048), drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
 }
 
 
-# ============================================================
-# EmoCatNets-v2 Model (NO STN)
-# ============================================================
+# ----------------------------
+# Model
+# ----------------------------
 
 class EmoCatNetsV2(nn.Module):
     """
-    EmoCatNets-v2 (NO STN):
-      stem(64->64) -> stage1(C@64)
-      -> down1(64->32) -> stage2(C@32)
-      -> down2(32->16) -> stage3(C@16) [save feat16]
-      -> down3(16->8)  -> stage4(T@8 tokens) [save feat8]
-      -> multi-scale head: concat(GAP16, GAP8) -> LN -> Linear
+    EmoCatNets-v2 (no STN).
 
-    Change:
-      - No CBAM after stage4 (removed cbam4).
+    Stages:
+      - stem + stage1: 64×64
+      - down1 + stage2: 32×32
+      - down2 + stage3: 16×16  -> pooled feature feat_16
+      - down3 + stage4: 8×8    -> pooled feature feat_8 (Transformer over 8×8 tokens)
+
+    Head:
+      concat([feat_16, feat_8]) -> LayerNorm -> Linear(num_classes)
+
+    Notes:
+      - CBAM is applied after stage1, stage2, stage3 only.
+      - There is no CBAM after stage4.
+      - Stage4 assumes 64×64 input (so the grid is exactly 8×8).
     """
     def __init__(
         self,
@@ -329,7 +345,7 @@ class EmoCatNetsV2(nn.Module):
         drop_path_rate: float = 0.15,
         layer_scale_init_value: float = 1e-6,
         head_init_scale: float = 1.0,
-        cbam_reduction: int = 16,
+        cbam_reduction: float = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.05,
         proj_dropout: float = 0.10,
@@ -340,8 +356,10 @@ class EmoCatNetsV2(nn.Module):
 
         d0, d1, d2, d3 = dims
 
+        # 64×64
         self.stem = Stem(in_channels=in_channels, out_channels=d0)
 
+        # Downsampling: 64->32->16->8
         self.down1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
             nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
@@ -355,6 +373,7 @@ class EmoCatNetsV2(nn.Module):
             nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),
         )
 
+        # Stochastic depth schedule over all blocks (stage1..stage4)
         total_blocks = sum(depths)
         dp_rates: List[float] = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
@@ -377,6 +396,7 @@ class EmoCatNetsV2(nn.Module):
         ])
         cur += depths[2]
 
+        # Transformer over an 8×8 grid => 64 tokens
         self.stage4 = nn.Sequential(*[
             RelativeTransformerBlockV2(
                 dim=d3,
@@ -391,66 +411,62 @@ class EmoCatNetsV2(nn.Module):
             for i in range(depths[3])
         ])
 
+        # CBAM after conv stages only
         self.cbam1 = CBAM(d0, reduction=cbam_reduction)
         self.cbam2 = CBAM(d1, reduction=cbam_reduction)
         self.cbam3 = CBAM(d2, reduction=cbam_reduction)
-        # self.cbam4 removed
 
         self.final_ln = nn.LayerNorm(d2 + d3, eps=1e-6)
         self.head = nn.Linear(d2 + d3, num_classes)
 
-        # Global init
-        # Global init
+        # Init weights (simple global init)
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-        # IMPORTANT: restore STN identity behavior after global init
-        if self.use_stn and isinstance(self.stn, ResidualSTN):
-            nn.init.zeros_(self.stn.stn.fc[-1].weight)
-            nn.init.zeros_(self.stn.stn.fc[-1].bias)
-            # alpha gate already init'd via logit; keep as-is
-
+        # Head scaling (common in ConvNeXt-style setups)
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # 64×64
         x = self.stem(x)
-
         x = self.stage1(x)
         x = self.cbam1(x)
 
+        # 32×32
         x = self.down1(x)
         x = self.stage2(x)
         x = self.cbam2(x)
 
+        # 16×16
         x = self.down2(x)
         x = self.stage3(x)
         x = self.cbam3(x)
-        feat_16 = x.mean(dim=(-2, -1))
+        feat_16 = x.mean(dim=(-2, -1))  # GAP
 
+        # 8×8 -> tokens -> Transformer -> 8×8
         x = self.down3(x)
         b, c, h, w = x.shape
         if h != 8 or w != 8:
             raise ValueError(f"Expected 8x8 before transformer stage4, got {h}x{w}.")
 
-        tokens = x.flatten(2).transpose(1, 2)
+        tokens = x.flatten(2).transpose(1, 2)  # (B, 64, C)
         tokens = self.stage4(tokens)
         x = tokens.transpose(1, 2).reshape(b, c, h, w)
-        # x = self.cbam4(x)  # removed
-        feat_8 = x.mean(dim=(-2, -1))
+        feat_8 = x.mean(dim=(-2, -1))  # GAP
 
         feat = torch.cat([feat_16, feat_8], dim=1)
         feat = self.final_ln(feat)
         return self.head(feat)
 
 
-# ============================================================
+# ----------------------------
 # Factory
-# ============================================================
+# ----------------------------
 
 def emocatnetsv2_fer(
     size: str = "tiny",
@@ -485,9 +501,9 @@ def emocatnetsv2_fer(
     )
 
 
-# ============================================================
-# Quick tests
-# ============================================================
+# ----------------------------
+# Quick test
+# ----------------------------
 
 def _count_params(m: nn.Module) -> int:
     return sum(p.numel() for p in m.parameters() if p.requires_grad)
@@ -499,7 +515,7 @@ def _shape_test(image_size: int = 64, batch_size: int = 2, num_classes: int = 6,
     for name in EMOCATNETS_V2_SIZES.keys():
         model = emocatnetsv2_fer(name, in_channels=in_channels, num_classes=num_classes).to(device).eval()
         x = torch.randn(batch_size, in_channels, image_size, image_size, device=device)
-        y = model(x) 
+        y = model(x)
         print(f"{name:6s} | params={_count_params(model):,} | out={tuple(y.shape)}")
         assert y.shape == (batch_size, num_classes)
 

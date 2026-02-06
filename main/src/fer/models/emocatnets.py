@@ -1,13 +1,22 @@
 """
-EmoCatNets (64x64 FER)
+EmoCatNets (FER 64×64)
 
-Requested changes:
-1) Remove SE after stage4 (remove se4 module + remove x = self.se4(x)).
-2) Replace SE with CBAM in other places (stage1/2/3): se1,se2,se3 -> cbam1,cbam2,cbam3.
-   (Stage4 gets no attention module after it.)
+Requested changes applied:
+1) STN removed completely (no STNLayer / ResidualSTN, no stn args in model/factory, no stn init logic).
+2) No attention module after stage4 (removed se4 previously; stage4 has none).
+3) CBAM is used after stages 1–3 only (cbam1/cbam2/cbam3).
+
+Architecture (for 64×64 inputs):
+  stem (stride=1, keeps 64×64)
+  -> stage1 (ConvNeXt blocks) + CBAM
+  -> down1 (64→32) -> stage2 + CBAM
+  -> down2 (32→16) -> stage3 + CBAM
+  -> down3 (16→8)  -> stage4 (relative-attention Transformer over 8×8 tokens)
+  -> GAP -> LN -> Linear classifier
 """
 
-import math
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple, List
 
@@ -18,11 +27,15 @@ from torchvision.ops import StochasticDepth
 from timm.layers import trunc_normal_
 
 
+# ============================================================
+# Core blocks
+# ============================================================
+
 class ConvNextBlock(nn.Module):
     """
     ConvNeXt residual block:
-    DWConv(7x7) -> LN (NHWC) -> Linear(4x) -> GELU -> Linear -> LayerScale -> DropPath -> Residual
-    Input/Output: (N, C, H, W)
+      DWConv(7×7) -> LN (NHWC) -> Linear(4×) -> GELU -> Linear -> LayerScale -> DropPath -> Residual
+    Input/Output: (B, C, H, W)
     """
     def __init__(self, dim: int, drop_path: float = 0.0, layer_scale_init_value: float = 1e-6):
         super().__init__()
@@ -41,22 +54,22 @@ class ConvNextBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
 
-        x = self.depthwise_conv(x)          # (B, C, H, W)
-        x = x.permute(0, 2, 3, 1)           # (B, H, W, C)
+        x = self.depthwise_conv(x)     # (B, C, H, W)
+        x = x.permute(0, 2, 3, 1)      # (B, H, W, C)
         x = self.layer_norm(x)
         x = self.pointwise_conv1(x)
         x = self.gelu(x)
         x = self.pointwise_conv2(x)
         if self.gamma is not None:
             x = self.gamma * x
-        x = x.permute(0, 3, 1, 2)           # (B, C, H, W)
+        x = x.permute(0, 3, 1, 2)      # (B, C, H, W)
 
         x = self.droppath(x)
         return x + identity
 
 
 class LayerNorm(nn.Module):
-    """LayerNorm supporting channels_last (NHWC) and channels_first (NCHW) like Meta's ConvNeXt code."""
+    """LayerNorm supporting channels_last (NHWC) and channels_first (NCHW)."""
     def __init__(self, normalized_shape: int, eps: float = 1e-6, data_format: str = "channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
@@ -80,95 +93,7 @@ class LayerNorm(nn.Module):
 
 
 # ============================================================
-# STN (AMP-stable, bounded) + Residual wrapper
-# ============================================================
-
-class STNLayer(nn.Module):
-    """
-    Light STN (AMP-stable):
-      - STN math in FP32 (autocast disabled inside)
-      - predicts bounded delta around identity: theta = I + scale*tanh(delta)
-      - returns output cast back to original dtype
-    """
-    def __init__(self, in_channels: int, hidden: int = 32, delta_scale: float = 0.1):
-        super().__init__()
-        self.delta_scale = float(delta_scale)
-
-        self.localization = nn.Sequential(
-            nn.Conv2d(in_channels, hidden, kernel_size=5, stride=2, padding=2),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(hidden, hidden, kernel_size=3, stride=2, padding=1),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d(1),
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(hidden, hidden),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden, 6),
-        )
-
-        # Identity affine as buffer (moves with device)
-        self.register_buffer(
-            "theta_id",
-            torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float32),
-            persistent=False,
-        )
-
-        # Initialize to produce zero delta -> identity at start
-        nn.init.zeros_(self.fc[-1].weight)
-        nn.init.zeros_(self.fc[-1].bias)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        orig_dtype = x.dtype
-
-        # AMP safety: run STN in FP32
-        with torch.cuda.amp.autocast(enabled=False):
-            x32 = x.float()
-            b = x32.size(0)
-
-            y = self.localization(x32).view(b, -1)
-            delta = self.fc(y)  # (B, 6)
-
-            # Bound transform magnitude
-            delta = self.delta_scale * torch.tanh(delta)
-
-            theta = (self.theta_id.unsqueeze(0) + delta).view(b, 2, 3)
-            grid = F.affine_grid(theta, size=x32.size(), align_corners=False)
-            out32 = F.grid_sample(
-                x32, grid,
-                mode="bilinear",
-                padding_mode="border",  # more stable when sampling out-of-frame
-                align_corners=False,
-            )
-
-        return out32.to(dtype=orig_dtype)
-
-
-class ResidualSTN(nn.Module):
-    """
-    Residual/gated STN:
-      x_out = (1 - alpha) * x + alpha * warp(x)
-    alpha is sigmoid(alpha_logit) so it's always in (0,1) without clamp dead-zones.
-    """
-    def __init__(self, in_channels: int, hidden: int = 32, delta_scale: float = 0.1, alpha_init: float = 0.15):
-        super().__init__()
-        self.stn = STNLayer(in_channels=in_channels, hidden=hidden, delta_scale=delta_scale)
-
-        alpha_init = float(alpha_init)
-        alpha_init = min(max(alpha_init, 1e-4), 1.0 - 1e-4)
-        alpha_logit = torch.log(torch.tensor(alpha_init) / (1.0 - torch.tensor(alpha_init)))
-        self.alpha_logit = nn.Parameter(alpha_logit.to(dtype=torch.float32))
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b = x.size(0)
-        y = self.localization(x).view(b, -1)
-        theta = self.fc(y).view(b, 2, 3)
-        grid = F.affine_grid(theta, size=x.size(), align_corners=False)
-        return F.grid_sample(x, grid, align_corners=False)
-
-
-# ============================================================
-# CBAM (replacing SE for stages 1-3)
+# CBAM (used after stages 1–3)
 # ============================================================
 
 class CBAM(nn.Module):
@@ -187,12 +112,14 @@ class CBAM(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, c, _, _ = x.shape
 
+        # Channel attention
         avg = F.adaptive_avg_pool2d(x, 1).view(b, c)
-        mx  = F.adaptive_max_pool2d(x, 1).view(b, c)
+        mx = F.adaptive_max_pool2d(x, 1).view(b, c)
         ca = self.mlp(avg) + self.mlp(mx)
         ca = self.sigmoid(ca).view(b, c, 1, 1)
         x = x * ca
 
+        # Spatial attention
         avg_map = x.mean(dim=1, keepdim=True)
         max_map = x.max(dim=1, keepdim=True).values
         sa = torch.cat([avg_map, max_map], dim=1)
@@ -202,16 +129,11 @@ class CBAM(nn.Module):
 
 
 # ============================================================
-# Relative Attention (CoAtNet/Swin-style relative position bias)
-# Fixed grid size (8x8) for the last stage in this architecture.
-# Fixed grid size (8x8) for the last stage in this architecture.
+# Relative attention for fixed 8×8 token grid (stage4)
 # ============================================================
 
 class RelativePositionBias(nn.Module):
-    """
-    Learnable relative position bias for a fixed feature-map size (H, W).
-    Produces (heads, T, T) where T = H*W.
-    """
+    """Learnable relative position bias for a fixed (H, W) token grid."""
     def __init__(self, heads: int, height: int, width: int):
         super().__init__()
         self.heads = heads
@@ -237,18 +159,15 @@ class RelativePositionBias(nn.Module):
         nn.init.trunc_normal_(self.relative_bias_table, std=0.02)
 
     def forward(self) -> torch.Tensor:
-        T = self.height * self.width
+        t = self.height * self.width
         idx = self.relative_position_index.view(-1)
         bias = self.relative_bias_table[idx]
-        bias = bias.view(T, T, self.heads).permute(2, 0, 1).contiguous()
+        bias = bias.view(t, t, self.heads).permute(2, 0, 1).contiguous()
         return bias
 
 
 class RelativeMHSA(nn.Module):
-    """
-    Relative-position Multi-Head Self Attention on tokens (B, T, C),
-    where T = H*W for a fixed (H, W).
-    """
+    """Relative-position multi-head self-attention on tokens (B, T, C)."""
     def __init__(
         self,
         dim: int,
@@ -261,7 +180,6 @@ class RelativeMHSA(nn.Module):
         super().__init__()
         if dim % heads != 0:
             raise ValueError(f"dim={dim} must be divisible by heads={heads}")
-        self.dim = dim
         self.heads = heads
         self.head_dim = dim // heads
         self.scale = self.head_dim ** -0.5
@@ -274,11 +192,8 @@ class RelativeMHSA(nn.Module):
         self.rpb = RelativePositionBias(heads=heads, height=height, width=width)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        B, T, C = x.shape
-        qkv = self.qkv(x)
-        qkv = self.qkv(x)
-        qkv = qkv.reshape(B, T, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
+        b, t, c = x.shape
+        qkv = self.qkv(x).reshape(b, t, 3, self.heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
 
         attn = (q @ k.transpose(-2, -1)) * self.scale
@@ -287,21 +202,14 @@ class RelativeMHSA(nn.Module):
         attn = self.attn_drop(attn)
 
         out = attn @ v
-        out = out.transpose(1, 2).reshape(B, T, C)
-        out = attn @ v
-        out = out.transpose(1, 2).reshape(B, T, C)
-
+        out = out.transpose(1, 2).reshape(b, t, c)
         out = self.proj(out)
         out = self.proj_drop(out)
         return out
 
 
 class RelativeTransformerBlock(nn.Module):
-    """
-    Pre-LN + Relative MHSA + MLP, with StochasticDepth.
-    Fixed token grid (H, W) at init time (here 8x8).
-    Fixed token grid (H, W) at init time (here 8x8).
-    """
+    """Pre-LN + Relative MHSA + MLP, with stochastic depth. Fixed token grid size at init."""
     def __init__(
         self,
         dim: int,
@@ -342,33 +250,41 @@ class RelativeTransformerBlock(nn.Module):
         return x
 
 
+# ============================================================
+# Config
+# ============================================================
+
 @dataclass(frozen=True)
 class EmoCatNetConfig:
-    depths: Tuple[int, int, int, int]          # C, C, C, T
-    dims: Tuple[int, int, int, int]            # after stem: dims[0]..dims[3]
+    depths: Tuple[int, int, int, int]      # (C, C, C, T)
+    dims: Tuple[int, int, int, int]        # channels per stage
     drop_path_rate: float = 0.1
     layer_scale_init_value: float = 1e-6
     head_init_scale: float = 1.0
     num_heads: int = 8
     attn_dropout: float = 0.0
     proj_dropout: float = 0.0
-    cbam_reduction: int = 16  # replaces se_reduction
+    cbam_reduction: int = 16
 
 
 EMOCATNETS_SIZES: Dict[str, EmoCatNetConfig] = {
-    "nano": EmoCatNetConfig(depths=(3, 3, 6, 2),  dims=(64, 128, 256, 512),   drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
-    "tiny": EmoCatNetConfig(depths=(3, 3, 9, 2),  dims=(96, 192, 384, 768),   drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
-    "small":EmoCatNetConfig(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768),   drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
-    "base": EmoCatNetConfig(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
-    "large":EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
-    "xlarge":EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048),drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
+    "nano":  EmoCatNetConfig(depths=(3, 3, 6, 2),  dims=(64, 128, 256, 512),   drop_path_rate=0.06, num_heads=8, attn_dropout=0.00, proj_dropout=0.00),
+    "tiny":  EmoCatNetConfig(depths=(3, 3, 9, 2),  dims=(96, 192, 384, 768),   drop_path_rate=0.10, num_heads=8, attn_dropout=0.00, proj_dropout=0.02),
+    "small": EmoCatNetConfig(depths=(3, 3, 15, 2), dims=(96, 192, 384, 768),   drop_path_rate=0.15, num_heads=8, attn_dropout=0.02, proj_dropout=0.05),
+    "base":  EmoCatNetConfig(depths=(3, 3, 18, 2), dims=(128, 256, 512, 1024), drop_path_rate=0.20, num_heads=8, attn_dropout=0.05, proj_dropout=0.08),
+    "large": EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(192, 384, 768, 1536), drop_path_rate=0.30, num_heads=8, attn_dropout=0.06, proj_dropout=0.10),
+    "xlarge":EmoCatNetConfig(depths=(3, 3, 27, 2), dims=(256, 512, 1024, 2048), drop_path_rate=0.40, num_heads=8, attn_dropout=0.08, proj_dropout=0.12),
 }
 
 
+# ============================================================
+# Model (NO STN)
+# ============================================================
+
 class EmoCatNets(nn.Module):
     """
-    EmoCatNets:
-      STN -> stem -> stage1(C) -> CBAM1 -> down1 -> stage2(C) -> CBAM2 -> down2 -> stage3(C) -> CBAM3 -> down3 -> stage4(T, relative) -> head
+    EmoCatNets (no STN):
+      stem -> stage1 + CBAM -> down1 -> stage2 + CBAM -> down2 -> stage3 + CBAM -> down3 -> stage4 -> head
     """
     def __init__(
         self,
@@ -379,7 +295,6 @@ class EmoCatNets(nn.Module):
         drop_path_rate: float = 0.1,
         layer_scale_init_value: float = 1e-6,
         head_init_scale: float = 1.0,
-        stn_hidden: int = 32,
         cbam_reduction: int = 16,
         num_heads: int = 8,
         attn_dropout: float = 0.0,
@@ -391,13 +306,13 @@ class EmoCatNets(nn.Module):
 
         d0, d1, d2, d3 = dims
 
-        self.stn = STNLayer(in_channels=in_channels, hidden=stn_hidden)
-
+        # Stem keeps 64×64
         self.stem = nn.Sequential(
             nn.Conv2d(in_channels, d0, kernel_size=3, stride=1, padding=1),
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
         )
 
+        # Downsampling: 64->32->16->8
         self.downsample_layer_1 = nn.Sequential(
             LayerNorm(d0, eps=1e-6, data_format="channels_first"),
             nn.Conv2d(d0, d1, kernel_size=2, stride=2, padding=0),
@@ -411,11 +326,12 @@ class EmoCatNets(nn.Module):
             nn.Conv2d(d2, d3, kernel_size=2, stride=2, padding=0),
         )
 
-        # CBAM after stages 1-3, no attention module after stage4
+        # CBAM after stages 1–3, no attention module after stage4
         self.cbam1 = CBAM(d0, reduction=cbam_reduction)
         self.cbam2 = CBAM(d1, reduction=cbam_reduction)
         self.cbam3 = CBAM(d2, reduction=cbam_reduction)
 
+        # Stochastic depth schedule across all blocks
         total_blocks = sum(depths)
         dp_rates: List[float] = [x.item() for x in torch.linspace(0, drop_path_rate, total_blocks)]
         cur = 0
@@ -438,6 +354,7 @@ class EmoCatNets(nn.Module):
         ])
         cur += depths[2]
 
+        # Transformer tail over an 8×8 grid => 64 tokens
         self.stage4 = nn.Sequential(*[
             RelativeTransformerBlock(
                 dim=d3,
@@ -455,25 +372,20 @@ class EmoCatNets(nn.Module):
         self.final_ln = nn.LayerNorm(d3, eps=1e-6)
         self.head = nn.Linear(d3, num_classes)
 
+        # Init weights
         for m in self.modules():
             if isinstance(m, (nn.Conv2d, nn.Linear)):
                 trunc_normal_(m.weight, std=0.02)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
-        # IMPORTANT: restore STN identity behavior after global init
-        # (keep alpha as initialized so STN starts "small but nonzero")
-        nn.init.zeros_(self.stn.stn.fc[-1].weight)
-        nn.init.zeros_(self.stn.stn.fc[-1].bias)
-
         self.head.weight.data.mul_(head_init_scale)
         if self.head.bias is not None:
             self.head.bias.data.mul_(head_init_scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stn(x)
-
         x = self.stem(x)
+
         x = self.stage1(x)
         x = self.cbam1(x)
 
@@ -490,17 +402,19 @@ class EmoCatNets(nn.Module):
         b, c, h, w = x.shape
         if h != 8 or w != 8:
             raise ValueError(f"Expected 8x8 before stage4, got {h}x{w}. Check input size/downsampling.")
-        tokens = x.flatten(2).transpose(1, 2)
+
+        tokens = x.flatten(2).transpose(1, 2)   # (B, 64, C)
         tokens = self.stage4(tokens)
         x = tokens.transpose(1, 2).reshape(b, c, h, w)
-        # no SE/CBAM after stage4
 
-        feat =ив = x.mean(dim=(-2, -1))   # GAP -> (B, d3)
+        feat = x.mean(dim=(-2, -1))             # GAP -> (B, d3)
         feat = self.final_ln(feat)
-        logits = self.head(feat)
-        return logits
+        return self.head(feat)
 
 
+# ============================================================
+# Factory
+# ============================================================
 
 def emocatnets_fer(
     size: str = "tiny",
@@ -513,10 +427,8 @@ def emocatnets_fer(
     num_heads: Optional[int] = None,
     attn_dropout: Optional[float] = None,
     proj_dropout: Optional[float] = None,
-    stn_hidden: int = 32,
-    stn_delta_scale: float = 0.1,
-    stn_alpha_init: float = 0.15,
-) -> "EmoCatNets":
+    cbam_reduction: Optional[int] = None,
+) -> EmoCatNets:
     size = size.lower()
     if size not in EMOCATNETS_SIZES:
         raise ValueError(f"Unknown size='{size}'. Valid: {list(EMOCATNETS_SIZES.keys())}")
@@ -533,8 +445,7 @@ def emocatnets_fer(
         num_heads=cfg.num_heads if num_heads is None else num_heads,
         attn_dropout=cfg.attn_dropout if attn_dropout is None else attn_dropout,
         proj_dropout=cfg.proj_dropout if proj_dropout is None else proj_dropout,
-        stn_hidden=stn_hidden,
-        cbam_reduction=cfg.cbam_reduction,
+        cbam_reduction=cfg.cbam_reduction if cbam_reduction is None else cbam_reduction,
     )
 
 
@@ -572,7 +483,7 @@ def _one_train_step(size: str = "tiny", image_size: int = 64, num_classes: int =
     opt.zero_grad(set_to_none=True)
     loss.backward()
     opt.step()
-    print(f"{size} train step loss:", float(loss.item()))
+    print(f"{size} train step loss: {float(loss.item()):.6f}")
 
 
 if __name__ == "__main__":
