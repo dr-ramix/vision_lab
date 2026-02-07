@@ -211,6 +211,12 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-03_09-13-30__coatnetv2_base__user-sallauka__e30877,coatnetv2_base,accuracy,0.8189579040329703,0.8327556325823223,sallauka,2026-02-05T19:48:33
 2026-02-05_10-55-19__emonext_tiny__user-sallauka__e30877,emonext_tiny,accuracy,0.20370915513688548,0.11936741767764299,sallauka,2026-02-06T03:00:13
 2026-02-04_10-42-40__emocatnetsv2_small__user-usergpu__e30877,emocatnetsv2_small,accuracy,0.2868080094228504,0.04417496751840624,usergpu,2026-02-04T13:07:17
+2026-02-06_15-58-45__convnext_tiny__user-sallauka__e30877,convnext_tiny,accuracy,0.7957020900794819,0.8050259965337955,sallauka,2026-02-06T22:24:14
+2026-02-06_11-54-13__coatnetv2_small__user-sallauka__e30877,coatnetv2_small,accuracy,0.8189579040329703,0.8305892547660312,sallauka,2026-02-06T23:01:36
+2026-02-06_00-09-57__emonext_small__user-sallauka__e30877,emonext_small,accuracy,0.20459228731233442,0.10333622183708839,sallauka,2026-02-07T01:41:42
+2026-02-06_15-59-06__coatnext_tiny__user-sallauka__e30877,coatnext_tiny,accuracy,0.8166028848984398,0.8212738301559792,sallauka,2026-02-07T08:03:16
+2026-02-06_15-59-09__convnextv2_tiny__user-sallauka__e30877,convnextv2_tiny,accuracy,0.8077715631439506,0.8199740034662045,sallauka,2026-02-07T08:18:16
+2026-02-06_00-09-58__emonext_base__user-sallauka__e30877,emonext_base,accuracy,0.27112157786282015,0.038778162911611784,sallauka,2026-02-07T13:06:15
 2026-02-02_13-22-46__coatnext_tiny__user-hosseinis__e30877,coatnext_tiny,accuracy,0.8192522814247866,0.8186741767764298,hosseinis,2026-02-06T03:41:24
 2026-01-31_19-16-29__cnn_vanilla__user-bargozideh__e30877,cnn_vanilla,accuracy,0.7795113335295849,0.7775129982668978,bargozideh,2026-01-31T20:39:23
 2026-01-31_19-31-16__cnn_vanilla__user-bargozideh__e30877,cnn_vanilla,accuracy,0.7727406535178099,0.7833622183708839,bargozideh,2026-01-31T20:51:51

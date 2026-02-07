@@ -209,15 +209,22 @@ class Transformer(nn.Module):
         if downsample:
             self.pool = nn.MaxPool2d(2, 2)
             self.proj = nn.Conv2d(inp, oup, 1, bias=False)
+        elif inp != oup:
+            self.proj = nn.Conv2d(inp, oup, 1, bias=False)
+        else:
+            self.proj = nn.Identity()
 
-        dim = oup if downsample else inp
-
-        self.attn = PreNorm(dim, Attention(inp=dim, oup=dim, image_size=image_size, heads=heads))
-        self.ff = PreNorm(dim, FeedForward(dim, dim * 4))
+        self.attn = PreNorm(
+            oup,
+            Attention(inp=oup, oup=oup, image_size=image_size, heads=heads)
+        )
+        self.ff = PreNorm(oup, FeedForward(oup, oup * 4))
 
     def forward(self, x):
         if self.downsample:
             x = self.proj(self.pool(x))
+        else:
+            x = self.proj(x)
 
         b, c, h, w = x.shape
         x = rearrange(x, 'b c h w -> b (h w) c')
