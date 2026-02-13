@@ -235,4 +235,4 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-11_02-15-12__emocatnetsv3_nano__user-bargozideh__e30877,emocatnetsv3_nano,accuracy,0.8118928466293789,0.8236568457538995,bargozideh,2026-02-11T19:48:43
 2026-02-11_02-12-11__emocatnetsv2k5_nano__user-bargozideh__e30877,emocatnetsv2k5_nano,accuracy,0.2007653812187224,0.038778162911611784,bargozideh,2026-02-12T02:30:48
 2026-02-11_02-10-09__emocatnetsv0_nano__user-bargozideh__e30877,emocatnetsv0_nano,accuracy,0.8065940535766853,0.8097920277296361,bargozideh,2026-02-12T02:38:35
-2026-02-11_02-09-11__emocatnetsv2residual_nano__user-bargozideh__e30877,emocatnetsv2residual_nano,accuracy,0.8121872240211951,0.8279896013864818,bargozideh,2026-02-12T03:49:55
+2026-02-11_02-09-11__emocatnetsv2residual_nano__user-bargozideh__e30877,emocatnetsv2residual_nano,accuracy,0.8121872240211951,0.8279896013864818,bargozideh,2026-02-12T03:49:552026-02-12_09-55-38__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8107153370621136,0.8154246100519931,hosseinis,2026-02-13T14:14:41
