@@ -42,7 +42,7 @@ export MPLCONFIGDIR="$TMPDIR/matplotlib"
 export HF_HOME="$TMPDIR/hf"
 mkdir -p "$XDG_CACHE_HOME" "$TORCH_HOME" "$TORCH_EXTENSIONS_DIR" "$MPLCONFIGDIR" "$HF_HOME"
 
-export PYTORCH_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
 
 # -----------------------------
 

@@ -2,7 +2,7 @@
 #SBATCH --job-name=emocatv2_small_k5
 #SBATCH --export=ALL,TMPDIR=/home/h/hosseinis/.tmp
 #SBATCH --partition=NvidiaAll
-#SBATCH --time=60:00:00
+#SBATCH --time=90:00:00
 #SBATCH --exclusive
 #SBATCH --cpus-per-task=8
 #SBATCH --output=slurm-%j.out
@@ -44,7 +44,7 @@ export MPLCONFIGDIR="$TMPDIR/matplotlib"
 export HF_HOME="$TMPDIR/hf"
 mkdir -p "$XDG_CACHE_HOME" "$TORCH_HOME" "$TORCH_EXTENSIONS_DIR" "$MPLCONFIGDIR" "$HF_HOME"
 
-export PYTORCH_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:128
 
 # -----------------------------
 
@@ -85,7 +85,7 @@ echo "============================"
 # Run training
 # -----------------------------
 
-python train.py dataloader=grey model=emocatnetsv2k5_small epochs=300 bs=24 grad_accum=1 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
+python train.py dataloader=grey model=emocatnetsv2k5_small epochs=300 bs=24 grad_accum=2 optimizer=adamw lr=2e-4 weight_decay=9e-3 \
     scheduler=warmup_cosine warmup_epochs=5 min_lr=3e-7 amp=true grad_clip=1.0 early_stop=300 \
     class_weight=true label_smoothing=0.07 \
     mix_prob=0.1 mixup_alpha=0.3 cutmix_alpha=0.4 \
