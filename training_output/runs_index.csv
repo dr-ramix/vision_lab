@@ -226,6 +226,7 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-02_15-05-35__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.22990874300853695,0.14861351819757365,bargozideh,2026-02-05T12:19:36
 2026-02-02_15-05-36__emocatnetsv2fine_small__user-bargozideh__e30877,emocatnetsv2fine_small,accuracy,0.2734765969973506,0.1505632582322357,bargozideh,2026-02-05T13:30:43
 2026-02-02_15-05-35__emocatnetsv2_small__user-bargozideh__e30877,emocatnetsv2_small,accuracy,0.2734765969973506,0.1505632582322357,bargozideh,2026-02-06T01:41:34
+<<<<<<< HEAD
 2026-02-11_02-08-10__coatnext_nano__user-bargozideh__e30877,coatnext_nano,accuracy,0.8045334118339712,0.8162911611785095,bargozideh,2026-02-11T11:19:07
 2026-02-11_02-11-51__emocatnetsv2_nano__user-bargozideh__e30877,emocatnetsv2_nano,accuracy,0.8068884309685016,0.8158578856152513,bargozideh,2026-02-11T12:24:24
 2026-02-11_02-11-23__emocatnetsv2nocbam_nano__user-bargozideh__e30877,emocatnetsv2nocbam_nano,accuracy,0.22961436561672063,0.2136048526863085,bargozideh,2026-02-11T12:25:49
@@ -236,3 +237,23 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-11_02-12-11__emocatnetsv2k5_nano__user-bargozideh__e30877,emocatnetsv2k5_nano,accuracy,0.2007653812187224,0.038778162911611784,bargozideh,2026-02-12T02:30:48
 2026-02-11_02-10-09__emocatnetsv0_nano__user-bargozideh__e30877,emocatnetsv0_nano,accuracy,0.8065940535766853,0.8097920277296361,bargozideh,2026-02-12T02:38:35
 2026-02-11_02-09-11__emocatnetsv2residual_nano__user-bargozideh__e30877,emocatnetsv2residual_nano,accuracy,0.8121872240211951,0.8279896013864818,bargozideh,2026-02-12T03:49:552026-02-12_09-55-38__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8107153370621136,0.8154246100519931,hosseinis,2026-02-13T14:14:41
+=======
+2026-02-06_18-28-00__emocatnetsv0_tiny__user-hosseinis__e30877,emocatnetsv0_tiny,accuracy,0.8074771857521342,0.8121750433275563,hosseinis,2026-02-07T13:42:50
+2026-02-06_18-28-49__convnextv2_tiny__user-hosseinis__e30877,convnextv2_tiny,accuracy,0.8086546953193995,0.8110918544194108,hosseinis,2026-02-07T15:13:09
+2026-02-06_18-55-58__coatnext_tiny__user-hosseinis__e30877,coatnext_tiny,accuracy,0.8083603179275831,0.8191074523396881,hosseinis,2026-02-07T15:55:26
+2026-02-06_18-56-44__emocatnets_tiny__user-hosseinis__e30877,emocatnets_tiny,accuracy,0.8124816014130115,0.8165077989601387,hosseinis,2026-02-07T17:18:20
+2026-02-06_19-11-30__emocatnetsv3fine_tiny__user-hosseinis__e30877,emocatnetsv3fine_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-08T01:29:23
+2026-02-06_18-56-41__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-08T01:57:49
+2026-02-07_10-48-19__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8092434501030321,0.820840554592721,hosseinis,2026-02-08T04:08:20
+2026-02-08_20-26-58__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.810126582278481,0.817157712305026,hosseinis,2026-02-10T01:17:49
+2026-02-09_03-16-10__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8133647335884604,0.8191074523396881,hosseinis,2026-02-10T12:24:13
+2026-02-09_03-36-04__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8133647335884604,0.8130415944540728,hosseinis,2026-02-10T12:37:49
+2026-02-09_14-04-07__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.793935825728584,0.11936741767764299,hosseinis,2026-02-10T18:56:34
+2026-02-09_14-43-57__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8045334118339712,0.8128249566724437,hosseinis,2026-02-10T19:32:11
+2026-02-09_13-48-05__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.604945540182514,0.11936741767764299,hosseinis,2026-02-10T19:54:45
+2026-02-09_15-05-05__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8054165440094201,0.8108752166377816,hosseinis,2026-02-10T19:55:02
+2026-02-09_13-55-35__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.7600824256697085,0.11936741767764299,hosseinis,2026-02-10T20:02:38
+2026-02-09_13-48-30__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8065940535766853,0.8201906412478336,hosseinis,2026-02-10T20:03:21
+2026-02-09_13-56-38__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8142478657639093,0.8167244367417678,hosseinis,2026-02-10T20:16:56
+2026-02-10_22-45-17__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8021783926994407,0.725736568457539,hosseinis,2026-02-11T19:28:18
+>>>>>>> 579f785 (new results)
