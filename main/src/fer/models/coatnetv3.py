@@ -1,9 +1,9 @@
 import torch
-import torch.nn as nn 
+import torch.nn as nn
 import torch.nn.functional as F
 
 from einops import rearrange
-from einops.layers.torch import Rearrange 
+from einops.layers.torch import Rearrange
 
 configs = {
     'coatnetv3-0': {
@@ -181,8 +181,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         qkv = self.to_qkv(x).chunk(3, dim=-1)
-        q, k, v = map(lambda t: rearrange(
-            t, 'b n (h d) -> b h n d', h=self.heads), qkv)
+        q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h=self.heads), qkv)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale
 
@@ -236,10 +235,11 @@ class Transformer(nn.Module):
         return x
     
 class SimpleStem(nn.Module):
+    """NO downsampling: keeps HxW the same (64x64 stays 64x64)."""
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.stem = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(out_channels),
             nn.GELU()
         )
@@ -253,23 +253,61 @@ blocks = {
 }
 
 class CoAtNetV3(nn.Module):
-    def __init__(self, inp_h, inp_w, in_channels, config='coatnetv3-0', num_classes=None, head_act_fn='mish', head_dropout=0.1):
+    """
+    Target spatial pyramid for 64x64 input:
+      input 64
+      s0: 64  (stem no downsample)
+      s1: 32  (downsample_first=True)
+      s2: 16  (downsample_first=True)
+      s3:  8  (downsample_first=True)
+      s4:  8  (downsample_first=False)
+    => 64-64-32-16-8
+    """
+    def __init__(self, inp_h, inp_w, in_channels, config='coatnetv3-0',
+                 num_classes=None, head_act_fn='mish', head_dropout=0.1):
         super().__init__()
         self.config = configs[config]
         block_types = self.config['block_types']
+
+        # Stem keeps resolution now
         self.s0 = self._make_stem(in_channels)
-        self.s1 = self._make_block(block_types[0], inp_h >> 1, inp_w >> 1,
-                                   self.config['num_channels'][0], self.config['num_channels'][1],
-                                   self.config['num_blocks'][0], self.config['expand_ratio'][0], downsample_first=True)
-        self.s2 = self._make_block(block_types[1], inp_h >> 2, inp_w >> 2,
-                                   self.config['num_channels'][1], self.config['num_channels'][2],
-                                   self.config['num_blocks'][1], self.config['expand_ratio'][1], downsample_first=True)
-        self.s3 = self._make_block(block_types[2], inp_h >> 3, inp_w >> 3,
-                                   self.config['num_channels'][2], self.config['num_channels'][3],
-                                   self.config['num_blocks'][2], self.config['expand_ratio'][2], downsample_first=False)
-        self.s4 = self._make_block(block_types[3], inp_h >> 3, inp_w >> 3,
-                                   self.config['num_channels'][3], self.config['num_channels'][4],
-                                   self.config['num_blocks'][3], self.config['expand_ratio'][3], downsample_first=False)
+
+        # After s0: (inp_h, inp_w)
+        self.s1 = self._make_block(
+            block_types[0],
+            inp_h, inp_w,
+            self.config['num_channels'][0], self.config['num_channels'][1],
+            self.config['num_blocks'][0], self.config['expand_ratio'][0],
+            downsample_first=True
+        )  # 64 -> 32
+
+        # After s1: (inp_h//2, inp_w//2)
+        self.s2 = self._make_block(
+            block_types[1],
+            inp_h // 2, inp_w // 2,
+            self.config['num_channels'][1], self.config['num_channels'][2],
+            self.config['num_blocks'][1], self.config['expand_ratio'][1],
+            downsample_first=True
+        )  # 32 -> 16
+
+        # After s2: (inp_h//4, inp_w//4)
+        self.s3 = self._make_block(
+            block_types[2],
+            inp_h // 4, inp_w // 4,
+            self.config['num_channels'][2], self.config['num_channels'][3],
+            self.config['num_blocks'][2], self.config['expand_ratio'][2],
+            downsample_first=True
+        )  # 16 -> 8
+
+        # After s3: (inp_h//8, inp_w//8)
+        self.s4 = self._make_block(
+            block_types[3],
+            inp_h // 8, inp_w // 8,
+            self.config['num_channels'][3], self.config['num_channels'][4],
+            self.config['num_blocks'][3], self.config['expand_ratio'][3],
+            downsample_first=False
+        )  # stays 8
+
         self.include_head = num_classes is not None
         if self.include_head:
             if isinstance(num_classes, int):
@@ -277,12 +315,17 @@ class CoAtNetV3(nn.Module):
                 num_classes = [num_classes]
             else:
                 self.single_head = False
-            self.heads = nn.ModuleList([ProjectionHead(self.config['num_channels'][-1], nc, act_fn=head_act_fn, ff_dropout=head_dropout) for nc in num_classes])
-    
+            self.heads = nn.ModuleList([
+                ProjectionHead(self.config['num_channels'][-1], nc,
+                               act_fn=head_act_fn, ff_dropout=head_dropout)
+                for nc in num_classes
+            ])
+
     def _make_stem(self, in_channels):
         return SimpleStem(in_channels, self.config["num_channels"][0])
 
-    def _make_block(self, block_type, inp_h, inp_w, in_channels, out_channels, depth, expand_ratio, downsample_first=True):
+    def _make_block(self, block_type, inp_h, inp_w, in_channels, out_channels,
+                    depth, expand_ratio, downsample_first=True):
         blocks_list = []
         cur_h, cur_w = inp_h, inp_w
 
@@ -322,11 +365,11 @@ class CoAtNetV3(nn.Module):
         return nn.Sequential(*blocks_list)
     
     def forward(self, x):
-        x = self.s0(x)
-        x = self.s1(x)
-        x = self.s2(x)
-        x = self.s3(x)
-        x = self.s4(x)
+        x = self.s0(x)   # 64
+        x = self.s1(x)   # 32
+        x = self.s2(x)   # 16
+        x = self.s3(x)   # 8
+        x = self.s4(x)   # 8
         x = F.adaptive_avg_pool2d(x, 1).view(x.size(0), -1)
         if self.include_head:
             if self.single_head:
@@ -335,13 +378,12 @@ class CoAtNetV3(nn.Module):
         return x
 
 if __name__ == '__main__':
-    import torch
     from utils import print_num_params
     from fvcore.nn import FlopCountAnalysis
 
     image_size = (3, 64, 64)
-    config=f'coatnetv3-0'
-    coatnet = CoAtNetV3(inp_h=64,inp_w=64,in_channels=3,config='coatnetv3-0',num_classes=6)
+    config = 'coatnetv3-0'
+    coatnet = CoAtNetV3(inp_h=64, inp_w=64, in_channels=3, config=config, num_classes=6)
     coatnet.to('cuda:0')
     coatnet.eval()
     random_image = torch.randint(0, 256, size=(1, *image_size)).float() / 255
