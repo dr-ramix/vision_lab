@@ -1,7 +1,7 @@
 run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
-2025-12-28_22-41-27__cnn_vanilla__user-hosseinis__e30877,cnn_vanilla,0.3175893969120413,0.44280652916613944,hosseinis,2025-12-28T22:43:09
-2025-12-29_00-57-46__resnet18__user-hosseinis__e30877,resnet18,0.6083739739036601,0.6521574085790206,hosseinis,2025-12-29T01:15:59
-2026-01-03_14-19-41__resnet18__user-sallauka__e30877,resnet18,0.5921345412372413,0.6488042515500443,sallauka,2026-01-03T14:39:00
+2025-12-28_22-41-27__cnn_vanilla__user-hosseinis__e30877,cnn_vanilla,0.3175893969120413,0.44280652916613944,,hosseinis,2025-12-28T22:43:09
+2025-12-29_00-57-46__resnet18__user-hosseinis__e30877,resnet18,0.6083739739036601,0.6521574085790206,,hosseinis,2025-12-29T01:15:59
+2026-01-03_14-19-41__resnet18__user-sallauka__e30877,resnet18,0.5921345412372413,0.6488042515500443,,sallauka,2026-01-03T14:39:00
 2026-01-05_19-13-43__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.5875221359487808,0.5265858208955224,hosseinis,2026-01-05T19:18:23
 2026-01-05_19-40-57__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.5875221359487808,0.5265858208955224,hosseinis,2026-01-05T19:45:36
 2026-01-05_20-12-32__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.5875221359487808,0.5265858208955224,hosseinis,2026-01-05T20:17:12
@@ -40,7 +40,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-06_13-31-07__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7487102905240294,0.7130863539445629,bargozideh,2026-01-07T02:07:52
 2026-01-06_13-35-25__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7565843062720609,0.7114872068230277,bargozideh,2026-01-07T05:35:05
 2026-01-06_13-37-33__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.596660331251697,0.5607009594882729,bargozideh,2026-01-07T08:30:19
-<<<<<<< HEAD
 2026-01-07_17-07-19__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7216186854970125,0.6798774395523879,bargozideh,2026-01-07T20:43:56
 2026-01-07_17-06-33__coatnet_tiny_1__user-bargozideh__e30877,coatnet_tiny_1,accuracy,0.7263715372080392,0.6880037301005795,bargozideh,2026-01-07T22:08:37
 2026-01-07_18-44-47__emonext_base__user-bargozideh__e30877,emonext_base,accuracy,0.19839760999456818,0.1150336375141544,bargozideh,2026-01-07T23:51:46
@@ -54,7 +53,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-07_17-07-56__convnext_base__user-bargozideh__e30877,convnext_base,accuracy,0.7529875067897882,0.7185772330646772,bargozideh,2026-01-08T05:30:43
 2026-01-07_17-11-34__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7309885931558935,0.6864051155665091,bargozideh,2026-01-08T09:44:49
 2026-01-07_17-10-46__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.7460619228680065,0.6977286351828416,bargozideh,2026-01-08T19:19:47
-=======
 2026-01-07_22-08-53__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7094005449591281,0.6726170652101512,hosseinis,2026-01-07T23:49:46
 2026-01-07_23-50-02__coatnet_tiny_1__user-hosseinis__e30877,coatnet_tiny_1,accuracy,0.7070844686648501,0.6722174115766336,hosseinis,2026-01-08T04:48:42
 2026-01-08_02-24-16__emonext_tiny__user-hosseinis__e30877,emonext_tiny,accuracy,0.18869209809264306,0.14034503430360354,hosseinis,2026-01-08T05:05:35
@@ -79,7 +77,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-08_02-21-42__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.6955040871934605,0.6416439086125358,hosseinis,2026-01-09T00:02:52
 2026-01-09_23-57-42__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:03:43
 2026-01-10_00-04-59__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.16973164419016482,0.17550639658848613,hosseinis,2026-01-10T00:07:43
-
 2026-01-08_21-46-53__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.7694814010317675,0.7455357142857143,bargozideh,2026-01-09T04:38:25
 2026-01-09_12-28-11__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7064892750475156,0.6825026652452025,bargozideh,2026-01-09T14:45:15
 2026-01-09_12-39-38__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7150420852565843,0.677838486140725,bargozideh,2026-01-09T16:37:18
@@ -88,7 +85,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-09_21-22-07__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16331794732554983,0.1720415778251599,bargozideh,2026-01-09T21:24:48
 2026-01-09_22-10-05__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16331794732554983,0.1720415778251599,bargozideh,2026-01-09T22:13:20
 2026-01-10_00-02-41__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16915557969046974,0.1755730277185501,bargozideh,2026-01-10T00:05:57
-
 2026-01-10_11-33-01__coatnet_tiny__user-hosseinis__e30877,coatnet_tiny,accuracy,0.7234709167688326,0.6889658848614072,hosseinis,2026-01-10T13:46:15
 2026-01-10_11-33-03__coatnet_small__user-hosseinis__e30877,coatnet_small,accuracy,0.7199291649639014,0.6900986140724946,hosseinis,2026-01-10T14:08:42
 2026-01-10_11-33-03__coatnet_base__user-hosseinis__e30877,coatnet_base,accuracy,0.724969350224765,0.7017590618336887,hosseinis,2026-01-10T14:38:37
@@ -98,10 +94,8 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-10_11-33-17__emocatnets_base__user-hosseinis__e30877,emocatnets_base,accuracy,0.2178177360032693,0.2412046908315565,hosseinis,2026-01-10T16:38:15
 2026-01-10_11-36-59__emocatnets_small__user-hosseinis__e30877,emocatnets_small,accuracy,0.7509876038686828,0.7112873134328358,hosseinis,2026-01-10T17:02:42
 2026-01-11_04-39-48__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.7583435499250784,0.7342084221748401,hosseinis,2026-01-11T15:03:05
-
 2026-01-10_11-36-59__emocatnets_small__user-hosseinis__e30877,emocatnets_small,accuracy,0.7509876038686828,0.7112873134328358,hosseinis,2026-01-10T17:02:42
 2026-01-11_04-39-48__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.7583435499250784,0.7342084221748401,hosseinis,2026-01-11T15:03:05
-
 2026-01-10_04-38-23__resnet18__user-bargozideh__e30877,resnet18,accuracy,0.16915557969046974,0.1755730277185501,bargozideh,2026-01-10T04:45:08
 2026-01-10_21-14-00__coatnet_tiny__user-bargozideh__e30877,coatnet_tiny,accuracy,0.7117838718436058,0.6818363539445629,bargozideh,2026-01-11T00:09:39
 2026-01-10_20-59-36__coatnet_small__user-bargozideh__e30877,coatnet_small,accuracy,0.7140917730111322,0.6861007462686567,bargozideh,2026-01-11T01:41:44
@@ -109,7 +103,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-10_20-57-36__coatnet_base__user-bargozideh__e30877,coatnet_base,accuracy,0.7272603855552539,0.6948960554371002,bargozideh,2026-01-11T03:55:41
 2026-01-11_04-39-38__emocatnets_base__user-bargozideh__e30877,emocatnets_base,accuracy,0.2204724409448819,0.1423907249466951,bargozideh,2026-01-11T09:50:30
 2026-01-11_04-40-00__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.7496606027694814,0.7103544776119403,bargozideh,2026-01-11T11:14:42
-
 2026-01-11_13-27-27__emocatnetsv2_small__user-hosseinis__e30877,emocatnetsv2_small,accuracy,0.7718294510284702,0.7376066098081023,hosseinis,2026-01-12T02:51:27
 2026-01-11_13-09-06__convnextv2_small__user-hosseinis__e30877,convnextv2_small,accuracy,0.7734641057076692,0.7352745202558635,hosseinis,2026-01-12T03:58:28
 2026-01-11_13-13-28__convnextv2_small__user-hosseinis__e30877,convnextv2_small,accuracy,0.7734641057076692,0.7352745202558635,hosseinis,2026-01-12T05:26:38
@@ -117,11 +110,9 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-01-11_13-27-47__emocatnetsv2_base__user-hosseinis__e30877,emocatnetsv2_base,accuracy,0.7676065931072061,0.7348081023454158,hosseinis,2026-01-12T09:25:33
 2026-01-11_13-09-09__convnextv2_base__user-hosseinis__e30877,convnextv2_base,accuracy,0.7671979294374064,0.7336087420042644,hosseinis,2026-01-12T11:19:20
 2026-01-11_13-13-17__convnextv2_base__user-hosseinis__e30877,convnextv2_base,accuracy,0.7671979294374064,0.7365405117270789,hosseinis,2026-01-12T11:24:30
-
 2026-01-12_14-18-56__coatnetv2_tiny__user-sallauka__e30877,coatnetv2_tiny,accuracy,0.7757987763426241,0.7392723880597015,sallauka,2026-01-12T16:07:13
 2026-01-12_16-00-08__coatnetv2_base__user-sallauka__e30877,coatnetv2_base,accuracy,0.7688647178789939,0.7177505330490405,sallauka,2026-01-13T05:25:06
 2026-01-13_01-02-53__coatnetv2_small__user-sallauka__e30877,coatnetv2_small,accuracy,0.7649218218898708,0.732542643923241,sallauka,2026-01-13T08:31:42
-
 2026-01-11_22-20-34__resnet50__user-bargozideh__e30877,resnet50,accuracy,0.788759163725224,0.7406716417910447,bargozideh,2026-01-12T03:47:15
 2026-01-11_22-20-35__resnet101__user-bargozideh__e30877,resnet101,accuracy,0.7940537605213142,0.738206289978678,bargozideh,2026-01-12T08:28:01
 2026-01-11_22-20-39__emocatnets_small__user-bargozideh__e30877,emocatnets_small,accuracy,0.7124626663046429,0.652518656716418,bargozideh,2026-01-12T08:30:41
@@ -241,7 +232,7 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-06_18-28-49__convnextv2_tiny__user-hosseinis__e30877,convnextv2_tiny,accuracy,0.8086546953193995,0.8110918544194108,hosseinis,2026-02-07T15:13:09
 2026-02-06_18-55-58__coatnext_tiny__user-hosseinis__e30877,coatnext_tiny,accuracy,0.8083603179275831,0.8191074523396881,hosseinis,2026-02-07T15:55:26
 2026-02-06_18-56-44__emocatnets_tiny__user-hosseinis__e30877,emocatnets_tiny,accuracy,0.8124816014130115,0.8165077989601387,hosseinis,2026-02-07T17:18:20
-2026-02-06_19-11-30__emocatnetsv3fine_tiny__user-hosseinis__e30877,emocatnetsv3fine_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-08T01:29:23
+2026-02-06_19-11-30__emocatnetsv3fine__tiny-user-hosseinis__e30877,emocatnetsv3fine_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-08T01:29:23
 2026-02-06_18-56-41__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-08T01:57:49
 2026-02-07_10-48-19__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8092434501030321,0.820840554592721,hosseinis,2026-02-08T04:08:20
 2026-02-08_20-26-58__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.810126582278481,0.817157712305026,hosseinis,2026-02-10T01:17:49
