@@ -72,7 +72,7 @@ def main():
     project_root = Path(__file__).resolve().parents[1]  # .../main
     standardized_root = project_root / "src" / "fer" / "dataset" / "standardized"
 
-    subset_root = standardized_root / "fer2013" / "fer2013_mtcnn_cropped_norm"
+    subset_root = standardized_root / "fer2013" / "fer2013_mtcnn_cropped"
     train_root_npy = subset_root / "npy" / SPLIT
 
     if not train_root_npy.exists():
