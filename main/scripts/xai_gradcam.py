@@ -12,7 +12,7 @@ from tqdm import tqdm
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
-from fer.models.cnn_resnet18 import ResNet18FER
+from fer.models.emocatnets_v2 import emocatnetsv2_fer
 from fer.xai.grad_cam import GradCAM
 
 
@@ -31,7 +31,7 @@ MAX_IMAGES = 100
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 DATASET_ROOT = Path("../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test").resolve()
-WEIGHTS_PATH = Path("../weights/resnet18fer/model_state_dict.pt").resolve()
+WEIGHTS_PATH = Path("../weights/emocatnetsv2/model_state_dict_emocat_v2.pt").resolve()
 OUTPUT_DIR = Path("../xai_results/gradcam").resolve()
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -68,7 +68,7 @@ random.shuffle(selected_indices)
 print(f"Total selected images: {len(selected_indices)}")
 
 
-model = ResNet18FER(num_classes=num_classes)
+model = emocatnetsv2_fer(size="tiny", in_channels=3,num_classes=num_classes)
 model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
 model.to(DEVICE)
 model.eval()
@@ -76,13 +76,14 @@ model.eval()
 
 cam = GradCAM(
     model=model,
-    target_layers=[model.layer4[-1].conv2]
+    target_layers=[model.down3[1]]
 )
 
 print("Running Grad-CAM evaluation")
 
 
 for i, idx in enumerate(tqdm(selected_indices)):
+    model.zero_grad()
     x, y = dataset[idx]
 
     x = x.unsqueeze(0).to(DEVICE)
