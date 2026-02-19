@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
-from fer.models.cnn_resnet18 import ResNet18FER
+from fer.models.emocatnets_v2 import emocatnetsv2_fer
 from fer.xai.occlusion import OcclusionSaliency
 
 
@@ -20,14 +20,14 @@ random.seed(SEED)
 
 
 DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
-WEIGHTS_PATH = "../weights/resnet18fer/model_state_dict.pt"
+WEIGHTS_PATH = "../weights/emocatnetsv2/model_state_dict_emocat_v2.pt"
 
 TOP_PERCENT = 20
 MAX_IMAGES = 200
 
 WINDOW_SIZE = (8, 8)
 STRIDE = (4, 4)
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -39,7 +39,8 @@ print(f"Top percent removed: {TOP_PERCENT}%")
 
 transform = transforms.Compose([
     transforms.Resize((64, 64)),
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.5]*3, std=[0.5]*3),
 ])
 
 dataset = ImageFolder(DATASET_ROOT, transform=transform)
@@ -66,7 +67,7 @@ print(f"Selected {len(selected_indices)} images "
 
 
 
-model = ResNet18FER(num_classes=num_classes)
+model = emocatnetsv2_fer(size="tiny", in_channels=3,num_classes=num_classes)
 model.load_state_dict(torch.load(WEIGHTS_PATH, map_location=DEVICE))
 model.to(DEVICE)
 model.eval()
@@ -114,10 +115,12 @@ for idx in tqdm(selected_indices, desc="Processing images"):
     mask = heatmap >= threshold
 
     img = x[0].permute(1, 2, 0).detach().cpu().numpy()
+    img = (img * 0.5) + 0.5
     mean_val = img.mean()
 
     occluded_img = img.copy()
     occluded_img[mask] = mean_val
+    occluded_img = (occluded_img - 0.5) / 0.5
 
     occluded_tensor = torch.from_numpy(occluded_img) \
         .permute(2, 0, 1) \
