@@ -3,7 +3,18 @@ from __future__ import annotations
 from typing import Callable, Dict, List
 import torch.nn as nn
 
-from fer.models.cnn_resnet18 import ResNet18FER
+from fer.models.cnn_resnet18 import (
+    ResNet18FER,
+    ResNet18Slow1FER,
+    ResNet18Slow2FER,
+    ResNet18Slow3FER,
+    ResNet18Slow4FER,
+    ResNet18Slow5FER,
+    ResNet18Fast1FER,
+    ResNet18Fast2FER,
+    ResNet18Fast3FER,
+    ResNet18Fast4FER,
+)
 from fer.models.cnn_vanilla import CNNVanilla
 from fer.models.coatnet import CoAtNet
 from fer.models.coatnetv2 import CoAtNetV2
@@ -40,6 +51,8 @@ from fer.models.cnn_resenet101_fine import resnet101fine_fer
 from fer.models.convnext_fer_fine import convnextfer_v2_fine
 
 from fer.models.coatnext import coatnext_fer
+from fer.models.coatnext_downsample import coatnext_downsample_fer
+from fer.models.vgg19 import VGG19
 
 
 
@@ -104,6 +117,110 @@ def make_model(
 register_model(
     "resnet18",
     lambda num_classes, in_channels=3, transfer=False, **_: ResNet18FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18slow_1",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Slow1FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18slow_2",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Slow2FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18slow_3",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Slow3FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18slow_4",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Slow4FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18slow_5",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Slow5FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18fast_1",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast1FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "esnet18fast_1",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast1FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18fast_2",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast2FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "esnet18fast_2",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast2FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18fast_3",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast3FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "esnet18fast_3",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast3FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "resnet18fast_4",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast4FER(
+        num_classes=num_classes,
+        in_channels=in_channels,
+    ),
+)
+
+register_model(
+    "esnet18fast_4",
+    lambda num_classes, in_channels=3, transfer=False, **_: ResNet18Fast4FER(
         num_classes=num_classes,
         in_channels=in_channels,
     ),
@@ -1103,6 +1220,104 @@ register_model(
     ),
 )
 
+register_model(
+    "coatnextslow_1",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(1, 1, 1, 8),  # (64)-64-64-64-8
+    ),
+)
+
+register_model(
+    "coatnextslow_2",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(1, 1, 2, 2),  # (64)-64-64-32-16
+    ),
+)
+
+register_model(
+    "coatnextslow_3",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(1, 2, 1, 2),  # (64)-64-32-32-16
+    ),
+)
+
+register_model(
+    "coatnextslow_4",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(2, 1, 1, 4),  # (64)-32-32-32-8
+    ),
+)
+
+register_model(
+    "coatnextslow_5",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(2, 1, 1, 8),  # (64)-32-32-32-4
+    ),
+)
+
+register_model(
+    "coatnextfast_1",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(2, 1, 1, 8),  # (64)-32-32-32-4
+    ),
+)
+
+register_model(
+    "coatnextfast_2",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(4, 2, 2, 1),  # (64)-16-8-4-4
+    ),
+)
+
+register_model(
+    "coatnextfast_3",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(2, 4, 2, 2),  # (64)-32-8-4-2
+    ),
+)
+
+register_model(
+    "coatnextfast_4",
+    lambda num_classes, in_channels=3, transfer=False, **_: coatnext_downsample_fer(
+        size="tiny",
+        num_classes=num_classes,
+        in_channels=in_channels,
+        transfer=transfer,
+        stage_strides=(4, 4, 1, 2),  # (64)-16-4-4-2
+    ),
+)
 
 
 register_model(
@@ -1294,5 +1509,14 @@ register_model(
         num_classes=num_classes,
         in_channels=in_channels,
         transfer=transfer,
+    ),
+)
+
+
+register_model(
+    "vgg19",
+    lambda num_classes, in_channels=3, transfer=False, **_: VGG19(
+        num_classes=num_classes,
+        in_channels=in_channels,
     ),
 )
