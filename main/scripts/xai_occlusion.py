@@ -2,6 +2,10 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import random
+import cv2
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 from pathlib import Path
 from collections import defaultdict
@@ -21,6 +25,10 @@ random.seed(SEED)
 
 DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
 WEIGHTS_PATH = "../weights/emocatnetsv2/model_state_dict_emocat_v2.pt"
+OUTPUT_DIR = Path("../xai_results/occlusion").resolve()
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+print("Saving Occlusion maps to:", OUTPUT_DIR)
 
 TOP_PERCENT = 20
 MAX_IMAGES = 200
@@ -110,6 +118,50 @@ for idx in tqdm(selected_indices, desc="Processing images"):
         target_class=y.item(),
         normalize=True
     )
+
+    if torch.is_tensor(heatmap):
+        heatmap = heatmap.detach().cpu().numpy()
+
+    if heatmap.shape[0] != 64:
+        heatmap = cv2.resize(heatmap, (64, 64))
+
+    img = x[0].detach().cpu().permute(1, 2, 0).numpy()
+    img = (img - img.min()) / (img.max() - img.min() + 1e-8)
+
+    heatmap_color = cv2.applyColorMap(
+        np.uint8(255 * heatmap),
+        cv2.COLORMAP_JET
+    )
+    heatmap_color = cv2.cvtColor(heatmap_color, cv2.COLOR_BGR2RGB) / 255.0
+
+    overlay = np.clip(0.6 * img + 0.4 * heatmap_color, 0, 1)
+
+    cls_name = dataset.classes[y.item()].replace(" ", "_")
+
+    class_dir = OUTPUT_DIR / cls_name
+    class_dir.mkdir(exist_ok=True)
+
+    fig, axes = plt.subplots(1, 3, figsize=(10, 4))
+
+    axes[0].imshow(img)
+    axes[0].set_title("Input")
+
+    axes[1].imshow(heatmap, cmap="jet")
+    axes[1].set_title("Occlusion")
+
+    axes[2].imshow(overlay)
+    axes[2].set_title("Overlay")
+
+    for ax in axes:
+        ax.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(
+        class_dir / f"occlusion_{processed:04d}.png",
+        dpi=150,
+        bbox_inches="tight"
+    )
+    plt.close(fig)
 
     threshold = np.percentile(heatmap, 100 - TOP_PERCENT)
     mask = heatmap >= threshold
