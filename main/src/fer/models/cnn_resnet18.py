@@ -1,12 +1,8 @@
+from typing import Tuple
+
 import torch.nn as nn
-import os
-import math
-from dataclasses import dataclass
 
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
 
 class ResBlock(nn.Module):
@@ -68,18 +64,25 @@ class ResNet18FER(nn.Module):
       layer4: 2 blocks, 512 ch, first block stride 2
       head: global average pool + FC -> num_classes
     """
-    def __init__(self, num_classes=7, in_channels=3):
+    def __init__(
+        self,
+        num_classes: int = 7,
+        in_channels: int = 3,
+        stage_strides: Tuple[int, int, int, int] = (1, 2, 2, 2),
+    ):
         super().__init__()
         self.inplanes = 64
+        if len(stage_strides) != 4:
+            raise ValueError(f"stage_strides must have 4 values, got {stage_strides}")
 
         self.conv1 = nn.Conv2d(in_channels, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
         self.relu = nn.ReLU(inplace=True)
 
-        self.layer1 = self._make_layer(64,  blocks=2, stride=1)  # 64x64
-        self.layer2 = self._make_layer(128, blocks=2, stride=2)  # 32x32
-        self.layer3 = self._make_layer(256, blocks=2, stride=2)  # 16x16
-        self.layer4 = self._make_layer(512, blocks=2, stride=2)  # 8x8
+        self.layer1 = self._make_layer(64,  blocks=2, stride=stage_strides[0])
+        self.layer2 = self._make_layer(128, blocks=2, stride=stage_strides[1])
+        self.layer3 = self._make_layer(256, blocks=2, stride=stage_strides[2])
+        self.layer4 = self._make_layer(512, blocks=2, stride=stage_strides[3])
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))  # -> (N, 512, 1, 1)
         self.fc = nn.Linear(512, num_classes)
@@ -118,3 +121,56 @@ class ResNet18FER(nn.Module):
         x = self.fc(x)              # (N, 7)
         return x
 
+
+class ResNet18Slow1FER(ResNet18FER):
+    # (64)-64-64-64-8
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(1, 1, 1, 8))
+
+
+class ResNet18Slow2FER(ResNet18FER):
+    # (64)-64-64-32-16
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(1, 1, 2, 2))
+
+
+class ResNet18Slow3FER(ResNet18FER):
+    # (64)-64-32-32-16
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(1, 2, 1, 2))
+
+
+class ResNet18Slow4FER(ResNet18FER):
+    # (64)-32-32-32-8
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(2, 1, 1, 4))
+
+
+class ResNet18Slow5FER(ResNet18FER):
+    # (64)-32-32-32-4
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(2, 1, 1, 8))
+
+
+class ResNet18Fast1FER(ResNet18FER):
+    # (64)-32-32-32-4
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(2, 1, 1, 8))
+
+
+class ResNet18Fast2FER(ResNet18FER):
+    # (64)-16-8-4-4
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(4, 2, 2, 1))
+
+
+class ResNet18Fast3FER(ResNet18FER):
+    # (64)-32-8-4-2
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(2, 4, 2, 2))
+
+
+class ResNet18Fast4FER(ResNet18FER):
+    # (64)-16-4-4-2
+    def __init__(self, num_classes: int = 7, in_channels: int = 3):
+        super().__init__(num_classes=num_classes, in_channels=in_channels, stage_strides=(4, 4, 1, 2))
