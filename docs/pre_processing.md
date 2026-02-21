@@ -5,9 +5,68 @@ Follow the steps in the exact order below.
 
 ---
 
+## Step 0 — Create `.env` configuration file
+
+Before downloading any data, create a `.env` file inside the main project directory:
+
+vision_lab/.env
+
+Use the existing file:
+
+vision_lab/.env.example
+
+as a template.
+
+The `.env.example` looks like this:
+
+URL_RAFDB_ALIGNED_ZIP="THE_URL_FOR_DATASET;ASK_FOR_IT"  
+URL_RAFDB_LABELS= EXAMPLE: "/home/h/hosseinis/vision_lab/vision_lab/rafdb_labels.txt/home/h/hosseinis/vision_lab/vision_lab/rafdb_labels.txt"  
+KAGGLE_API_TOKEN= YOUR_KAGGLE_API_TOKEN  
+
+You must replace the values as follows:
+
+### URL_RAFDB_ALIGNED_ZIP
+
+Insert the download URL for the RAF-DB aligned dataset.
+
+You can obtain this URL from the official RAF-DB website:
+
+http://www.whdeng.cn/RAF/model1.html
+
+After requesting access and receiving the download link, paste the full URL here.
+
+### URL_RAFDB_LABELS
+
+Insert the absolute path to the existing file:
+
+rafdb_labels.txt
+
+Example:
+
+URL_RAFDB_LABELS="/absolute/path/to/vision_lab/rafdb_labels.txt"
+
+### KAGGLE_API_TOKEN
+
+Create a Kaggle API token in your Kaggle account settings and paste it into `.env`.
+
+Steps:
+1. Log into Kaggle
+2. Go to Account settings
+3. Click Create New API Token
+4. Copy the generated token
+5. Paste it into `.env`
+
+Example:
+
+KAGGLE_API_TOKEN=your_kaggle_api_token_here
+
+The `.env` file must exist and be correctly configured before running any scripts.
+
+---
+
 ## Step 1 — Download all source datasets
 
-First, download all required datasets and metadata by running:
+Download all required datasets and metadata by running:
 
 ```bash
 python vision_lab/main/scripts/download_sources.py
@@ -32,13 +91,13 @@ This script:
 
 ---
 
-# Choose One of the Following Two Variants
+## Choose One of the Following Two Variants
 
-After `images_raw` has been created, select exactly **one** of the two processing pipelines.
+After `images_raw` has been created, select exactly one of the two processing pipelines.
 
 ---
 
-# Variant A — Mixed Dataset  
+## Variant A — Mixed Dataset  
 (FER2013 with FERPlus labels + RAF-DB)
 
 ### Step A1 — Face detection and preprocessing (colored + grey)
@@ -65,7 +124,7 @@ This script:
 
 ---
 
-# Variant B — FER2013 Only  
+## Variant B — FER2013 Only  
 (FER2013 without FERPlus labels)
 
 ### Step B1 — Face detection and preprocessing
@@ -92,22 +151,25 @@ This script:
 
 ---
 
-# Full Execution Order
+## Full Execution Order
 
 Always run:
 
-1. `python vision_lab/main/scripts/download_sources.py`
-2. `python vision_lab/main/scripts/prepare_images_raw.py`
+1. Create and configure `vision_lab/.env`
+2. `python vision_lab/main/scripts/download_sources.py`
+3. `python vision_lab/main/scripts/prepare_images_raw.py`
 
 Then choose one:
 
 ### Mixed Dataset
-3. `python vision_lab/main/scripts/run_mtcnn_colored_grey.py`  
-4. `python vision_lab/main/scripts/compute_mean_std.py`
+
+4. `python vision_lab/main/scripts/run_mtcnn_colored_grey.py`  
+5. `python vision_lab/main/scripts/compute_mean_std.py`
 
 ### FER2013 Only
-3. `python vision_lab/main/scripts/run_mtcnn_crop_fer2013_only.py`  
-4. `python vision_lab/main/scripts/compute_mean_std_fer2013.py`
+
+4. `python vision_lab/main/scripts/run_mtcnn_crop_fer2013_only.py`  
+5. `python vision_lab/main/scripts/compute_mean_std_fer2013.py`
 
 ---
 
