@@ -1,5 +1,6 @@
 # Inference and Pretrained Weights
-
+## You dont need this for final submission 
+##Only if you want to test models for other task
 ## Core Modules
 
 - Inference API: `main/src/fer/inference/models.py`
