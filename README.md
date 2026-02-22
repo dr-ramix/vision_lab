@@ -149,15 +149,6 @@ OK
 
 ---
 
-# Test the Setup
-
-You can test the environment with:
-
-```bash
-python3 scripts/train_dummy.py
-```
-
----
 
 # Data Download & Pre-Processing
 
