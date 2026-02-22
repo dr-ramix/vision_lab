@@ -1,11 +1,3 @@
-"""
-EmoCatNets v0 (64x64 FER) — NO STN
-
-Requested change:
-- Keep SE layers, but REMOVE the SE after stage4:
-  - remove self.se4 from __init__
-  - remove x = self.se4(x) from forward
-"""
 
 from __future__ import annotations
 

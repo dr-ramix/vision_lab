@@ -1,4 +1,3 @@
-# fer/models/emocatnets_v3_fine.py
 from __future__ import annotations
 
 """

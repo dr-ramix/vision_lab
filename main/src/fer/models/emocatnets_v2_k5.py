@@ -1,19 +1,3 @@
-"""
-EmoCatNets-v2-K5 (64x64 FER) — NO fine-tuning / NO transfer loader
-NO residual STN, NO residual stem
-
-Same as EmoCatNets-v2-K5, but:
-- ConvNextBlockK5 uses DWConv(5x5, padding=2) instead of 7x7
-- Plain STN (optional) + Stem (conv3x3 s1 + LN ch_first)
-- C-C-C-T with 64->32->16->8
-- CBAM after each stage
-- Transformer at 8x8 tokens with RPB + CPE
-- Multi-scale head: GAP(16x16) + GAP(8x8)
-
-Requires:
-  pip install timm torchvision
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -1,10 +1,3 @@
-"""
-EmoCatNets-v2 (64x64 FER) — plain STN + stem (NO residual STN, NO residual stem)
-Variant: NO CBAM after transformer stage4
-
-This new model is: EmoCatNetsV2NoCBAM
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

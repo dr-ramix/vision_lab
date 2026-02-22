@@ -1,27 +1,3 @@
-# ============================================================
-# fer/models/emocatnets_fine.py
-# ============================================================
-# Fine-tuning/transfer wrapper for YOUR EmoCatNets (v1)
-#
-# EmoCatNets (64x64):
-#   STN: no downsampling (warp only)
-#   stem: no downsampling (stride=1)
-#   stage1 @64x64  -> down1 -> 32x32
-#   stage2 @32x32  -> down2 -> 16x16
-#   stage3 @16x16  -> down3 ->  8x8
-#   stage4 (relative transformer) @8x8 tokens
-#
-# Transfers timm ConvNeXt pretrained weights into:
-#   - stage1, stage2, stage3
-#   - downsample_layer_1/2/3 (or down1/2/3 if you ever rename)
-#
-# Skips:
-#   stn, stem, se*, stage4(transformer), final_ln, head
-#
-# Requires:
-#   pip install timm torchvision
-# ============================================================
-
 from __future__ import annotations
 
 from typing import Optional, Dict, Tuple, List, Any

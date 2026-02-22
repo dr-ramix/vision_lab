@@ -1,20 +1,3 @@
-"""
-EmoCatNets (FER 64×64)
-
-Requested changes applied:
-1) STN removed completely (no STNLayer / ResidualSTN, no stn args in model/factory, no stn init logic).
-2) No attention module after stage4 (removed se4 previously; stage4 has none).
-3) CBAM is used after stages 1–3 only (cbam1/cbam2/cbam3).
-
-Architecture (for 64×64 inputs):
-  stem (stride=1, keeps 64×64)
-  -> stage1 (ConvNeXt blocks) + CBAM
-  -> down1 (64→32) -> stage2 + CBAM
-  -> down2 (32→16) -> stage3 + CBAM
-  -> down3 (16→8)  -> stage4 (relative-attention Transformer over 8×8 tokens)
-  -> GAP -> LN -> Linear classifier
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

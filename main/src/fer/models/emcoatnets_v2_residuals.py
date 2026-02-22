@@ -1,13 +1,3 @@
-"""
-EmoCatNets-v2-Residual (64x64 FER)
-
-Same as your EmoCatNets-v2, ONLY renaming so you can register separately:
-- Class: EmoCatNetsV2Residual
-- Sizes dict: EMOCATNETS_V2_RESIDUAL_SIZES
-- Factory: emocatnetsv2residual_fer
-
-Everything else is unchanged.
-"""
 
 from __future__ import annotations
 

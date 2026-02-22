@@ -1,18 +1,3 @@
-"""
-EmoCatNetV2OneHead (64x64 FER)
-- NO residual STN, NO residual stem (plain STN optional + stem)
-- C-C-C-T with 64 -> 32 -> 16 -> 8
-- CBAM after each stage
-- Transformer at 8x8 tokens (64 tokens) with:
-  - Relative Position Bias
-  - Conv Positional Encoding (depthwise 3x3 on token grid)
-- ONE head ONLY (right after stage4):
-  GAP(8x8) -> LN -> Linear
-
-Requires:
-  pip install timm torchvision
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

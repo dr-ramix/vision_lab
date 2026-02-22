@@ -1,20 +1,3 @@
-"""
-EmoCatNets-v3 (FER 64×64)
-
-Hybrid ConvNeXtV2-style CNN + a small relative-position Transformer tail, designed for
-low-resolution facial expression recognition.
-
-Key design:
-- Stem keeps spatial size: 64×64 -> 64×64.
-- Three ConvNeXtV2-like convolutional stages with GRN + LayerScale.
-- CBAM attention after stage1–stage3 only (no CBAM after the transformer stage).
-- Stage4 is a tokenized 8×8 relative-attention Transformer (assumes 64×64 input).
-- Multi-scale head: concatenate global pooled features from 16×16 (stage3) and 8×8 (stage4).
-
-Backbone resolution flow (for 64×64 inputs):
-  64×64 (stem + stage1) -> 32×32 (down1 + stage2) -> 16×16 (down2 + stage3) -> 8×8 (down3 + stage4)
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

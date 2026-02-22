@@ -247,7 +247,6 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-09_13-56-38__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8142478657639093,0.8167244367417678,hosseinis,2026-02-10T20:16:56
 2026-02-10_22-45-17__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8021783926994407,0.725736568457539,hosseinis,2026-02-11T19:28:18
 2026-02-12_09-55-45__emocatnetsv3_tiny__user-hosseinis__e30877,emocatnetsv3_tiny,accuracy,0.8142478657639093,0.8193240901213171,hosseinis,2026-02-13T14:48:21
-
 2026-02-13_14-36-30__mobilenetv3_tiny__user-bargozideh__e30877,mobilenetv3_tiny,accuracy,0.7539005004415661,0.7688474870017331,bargozideh,2026-02-13T18:44:52
 2026-02-13_14-35-49__mobilenetv3_small__user-bargozideh__e30877,mobilenetv3_small,accuracy,0.7774506917868708,0.7926776429809359,bargozideh,2026-02-13T19:19:45
 2026-02-13_14-35-27__mobilenetv3_base__user-bargozideh__e30877,mobilenetv3_base,accuracy,0.7945245805122166,0.7952772963604853,bargozideh,2026-02-13T20:12:24
