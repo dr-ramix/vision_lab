@@ -46,20 +46,78 @@ git clone https://github.com/dr-ramix/vision_lab.git
 cd vision_lab
 ```
 
-## 2. Create and activate a virtual environment
+## 2. Create and Activate a Virtual Environment
 
 ### Linux / macOS
 
 ```bash
+# create
 python -m venv venv
+python3 -m venv venv
+
+# activate (bash / sh / zsh)
 source venv/bin/activate
+. venv/bin/activate
+
+# activate (fish)
+source venv/bin/activate.fish
+
+# activate (csh / tcsh)
+source venv/bin/activate.csh
 ```
 
-### Windows (PowerShell)
+---
+
+### Windows — PowerShell
+
+```powershell
+# create
+python -m venv venv
+py -m venv venv
+
+# activate (standard)
+venv\Scripts\Activate.ps1
+
+# activate (explicit relative path, often required)
+.\venv\Scripts\Activate.ps1
+
+# if execution policy blocks activation (temporary fix)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\venv\Scripts\Activate.ps1
+```
+
+---
+
+### Windows — CMD
+
+```cmd
+:: create
+python -m venv venv
+py -m venv venv
+
+:: activate
+venv\Scripts\activate.bat
+```
+
+---
+
+### Windows — Git Bash
 
 ```bash
+# create
 python -m venv venv
-venv\Scripts\Activate.ps1
+py -m venv venv
+
+# activate
+source venv/Scripts/activate
+```
+
+---
+
+### Deactivate (all platforms)
+
+```bash
+deactivate
 ```
 
 ## 3. Install dependencies
