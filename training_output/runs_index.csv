@@ -312,3 +312,14 @@ run_id,model,best_val_metric,best_val_score,test_acc,user,created_at
 2026-02-19_10-19-44__coatnextslow_5__user-hosseinis__e30877,coatnextslow_5,accuracy,0.7965852222549308,0.8165077989601387,hosseinis,2026-02-20T12:51:03
 2026-02-20_05-10-18__resnet18__user-hosseinis__e30877,resnet18,accuracy,0.8157197527229909,0.830155979202773,hosseinis,2026-02-20T13:37:21
 2026-02-19_21-57-43__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8115984692375625,0.8225736568457539,hosseinis,2026-02-20T15:27:45
+2026-02-19_10-19-46__coatnextslow_3__user-hosseinis__e30877,coatnextslow_3,accuracy,0.8015896379158081,0.8223570190641247,hosseinis,2026-02-20T18:08:57
+2026-02-19_15-26-17__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8110097144539299,0.811525129982669,hosseinis,2026-02-20T22:01:14
+2026-02-19_10-19-44__coatnextslow_2__user-hosseinis__e30877,coatnextslow_2,accuracy,0.7992346187812776,0.8201906412478336,hosseinis,2026-02-21T00:28:28
+2026-02-20_20-04-57__coatnetv3_tiny__user-hosseinis__e30877,coatnetv3_tiny,accuracy,0.8080659405357669,0.817157712305026,hosseinis,2026-02-21T09:43:21
+2026-02-20_20-07-27__coatnetv3_small__user-hosseinis__e30877,coatnetv3_small,accuracy,0.8160141301148072,0.8316724436741768,hosseinis,2026-02-21T10:43:30
+2026-02-20_20-17-58__coatnetv3_base__user-hosseinis__e30877,coatnetv3_base,accuracy,0.8133647335884604,0.8256065857885615,hosseinis,2026-02-21T18:15:41
+2026-02-21_11-07-26__resnet50__user-hosseinis__e30877,resnet50,accuracy,0.826317338828378,0.8318890814558059,hosseinis,2026-02-21T21:06:19
+2026-02-21_05-59-52__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8171916396820724,0.8147746967071057,hosseinis,2026-02-21T21:42:24
+2026-02-21_07-02-52__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8092434501030321,0.820840554592721,hosseinis,2026-02-21T22:56:19
+2026-02-21_07-32-05__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8051221666176037,0.8136915077989602,hosseinis,2026-02-21T23:27:37
+2026-02-21_08-14-44__emocatnetsv2_tiny__user-hosseinis__e30877,emocatnetsv2_tiny,accuracy,0.8136591109802768,0.8191074523396881,hosseinis,2026-02-22T00:15:27
