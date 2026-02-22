@@ -1,176 +1,107 @@
-# Pre-processing Pipeline (vision_lab)
+# Data Download and Pre-Processing
 
-This document describes the complete pre-processing pipeline for the `vision_lab` project.  
-Follow the steps in the exact order below.
+This document describes the active dataset pipeline implemented by the scripts in `main/scripts`.
 
----
+## 1. Required Configuration
 
-## Step 0 — Create `.env` configuration file
+Create a `.env` file in the repository root (`vision_lab/.env`) and set:
 
-Before downloading any data, create a `.env` file inside the main project directory:
+- `KAGGLE_API_TOKEN`: token for FER2013 Kaggle competition download.
+- `URL_RAFDB_ALIGNED_ZIP`: RAF-DB aligned images zip URL (Google Drive link).
+- `URL_RAFDB_LABELS`: RAF-DB labels source (Google Drive link or local file path).
 
-vision_lab/.env
+Reference template: `.env.example`.
 
-Use the existing file:
+## 2. Download Source Datasets
 
-vision_lab/.env.example
-
-as a template.
-
-The `.env.example` looks like this:
-
-URL_RAFDB_ALIGNED_ZIP="THE_URL_FOR_DATASET;ASK_FOR_IT"  
-URL_RAFDB_LABELS= EXAMPLE: "/home/h/hosseinis/vision_lab/vision_lab/rafdb_labels.txt/home/h/hosseinis/vision_lab/vision_lab/rafdb_labels.txt"  
-KAGGLE_API_TOKEN= YOUR_KAGGLE_API_TOKEN  
-
-You must replace the values as follows:
-
-### URL_RAFDB_ALIGNED_ZIP
-
-Insert the download URL for the RAF-DB aligned dataset.
-
-You can obtain this URL from the official RAF-DB website:
-
-http://www.whdeng.cn/RAF/model1.html
-
-After requesting access and receiving the download link, paste the full URL here.
-
-### URL_RAFDB_LABELS
-
-Insert the absolute path to the existing file:
-
-rafdb_labels.txt
-
-Example:
-
-URL_RAFDB_LABELS="/absolute/path/to/vision_lab/rafdb_labels.txt"
-
-### KAGGLE_API_TOKEN
-
-Create a Kaggle API token in your Kaggle account settings and paste it into `.env`.
-
-Steps:
-1. Log into Kaggle
-2. Go to Account settings
-3. Click Create New API Token
-4. Copy the generated token
-5. Paste it into `.env`
-
-Example:
-
-KAGGLE_API_TOKEN=your_kaggle_api_token_here
-
-The `.env` file must exist and be correctly configured before running any scripts.
-
----
-
-## Step 1 — Download all source datasets
-
-Download all required datasets and metadata by running:
+Run:
 
 ```bash
-python vision_lab/main/scripts/download_sources.py
+cd main/scripts
+python download_sources.py
 ```
 
-This script downloads all raw data sources into the project structure.
+What it creates:
 
----
+- `main/src/fer/dataset/sources/fer2013`
+- `main/src/fer/dataset/sources/ferplus`
+- `main/src/fer/dataset/sources/rafdb`
+- `main/src/fer/dataset/standardized/fer2013/fer2013_raw`
 
-## Step 2 — Create unified train/val/test structure
+Notes from current implementation:
 
-After downloading, build the unified dataset structure (`train`, `val`, `test`) by running:
+- FER2013 is downloaded from Kaggle competition files.
+- FERPlus is built from FER2013 pixels + `ferplus_labels.csv`.
+- In `fer2013_raw`, split name becomes `val` (not `validation`) and `neutral` is removed.
+
+## 3. Build Unified Raw Splits (`images_raw`)
+
+Run:
 
 ```bash
-python vision_lab/main/scripts/prepare_images_raw.py
+cd main/scripts
+python prepare_images_raw.py --mode copy --on-conflict overwrite
 ```
 
-This script:
-- Organizes the datasets into a consistent folder structure
-- Creates deterministic splits
-- Produces the `images_raw` directory used by all subsequent steps
+Output:
 
----
+- `main/src/fer/dataset/standardized/images_raw/{train,val,test}/{anger,disgust,fear,happiness,sadness,surprise}`
+- `main/src/fer/dataset/splits/images_raw_manifest.json`
 
-## Choose One of the Following Two Variants
+Important behavior:
 
-After `images_raw` has been created, select exactly one of the two processing pipelines.
+- Current script merges datasets from `sources/rafdb` and `sources/ferplus`.
+- If a dataset has no validation split, validation is carved from train using deterministic hashing.
 
----
+## 4. Face Crop Pipeline (Mixed + Grey)
 
-## Variant A — Mixed Dataset  
-(FER2013 with FERPlus labels + RAF-DB)
-
-### Step A1 — Face detection and preprocessing (colored + grey)
+Run:
 
 ```bash
-python vision_lab/main/scripts/run_mtcnn_colored_grey.py
+cd main/scripts
+python run_mtcnn_colored_grey.py
 ```
 
-This script:
-- Applies MTCNN face detection
-- Crops and aligns faces
-- Produces the mixed colored/grey dataset
+Output roots:
 
-### Step A2 — Compute dataset statistics (mean and std)
+- `main/src/fer/dataset/standardized/only_mtcnn_cropped/color_and_grey/{png,npy}`
+- `main/src/fer/dataset/standardized/only_mtcnn_cropped/grey/{png,npy}`
+
+## 5. Compute Dataset Statistics
+
+Run:
 
 ```bash
-python vision_lab/main/scripts/compute_mean_std.py
+cd main/scripts
+python compute_mean_std.py
 ```
 
-This script:
-- Computes per-channel mean
-- Computes per-channel standard deviation
-- Outputs normalization statistics used during training
+Creates:
 
----
+- `.../only_mtcnn_cropped/color_and_grey/dataset_stats_train.json`
+- `.../only_mtcnn_cropped/grey/dataset_stats_train.json`
 
-## Variant B — FER2013 Only  
-(FER2013 without FERPlus labels)
+These files are required by the corresponding dataloaders.
 
-### Step B1 — Face detection and preprocessing
+## Optional FER2013-Only Branch
+
+If you specifically use FER2013-only standardized data:
 
 ```bash
-python vision_lab/main/scripts/run_mtcnn_crop_fer2013_only.py
+cd main/scripts
+python run_mtcnn_crop_fer2013_only.py
+python compute_mean_std_fer2013.py
 ```
 
-This script:
-- Applies MTCNN face detection
-- Crops and aligns FER2013 images
-- Produces the FER2013-only processed dataset
+Outputs are under:
 
-### Step B2 — Compute dataset statistics (mean and std)
+- `main/src/fer/dataset/standardized/fer2013/fer2013_mtcnn_cropped`
 
-```bash
-python vision_lab/main/scripts/compute_mean_std_fer2013.py
-```
+## SLURM Wrappers
 
-This script:
-- Computes per-channel mean
-- Computes per-channel standard deviation
-- Outputs normalization statistics for the FER2013-only setup
+Top-level wrappers exist for cluster execution:
 
----
+- `download_sources.slurm`
+- `prepare_images_raw.slurm`
 
-## Full Execution Order
-
-Always run:
-
-1. Create and configure `vision_lab/.env`
-2. `python vision_lab/main/scripts/download_sources.py`
-3. `python vision_lab/main/scripts/prepare_images_raw.py`
-
-Then choose one:
-
-### Mixed Dataset
-
-4. `python vision_lab/main/scripts/run_mtcnn_colored_grey.py`  
-5. `python vision_lab/main/scripts/compute_mean_std.py`
-
-### FER2013 Only
-
-4. `python vision_lab/main/scripts/run_mtcnn_crop_fer2013_only.py`  
-5. `python vision_lab/main/scripts/compute_mean_std_fer2013.py`
-
----
-
-After completing these steps, the dataset is fully pre-processed and ready for model training.
+Submit with `sbatch <file>` from repository root.

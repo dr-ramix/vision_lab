@@ -1,60 +1,99 @@
-# Training Entry Point (`train.py`)
+# Training Guide
 
-## Usage
+## Entry Point
 
-You can run the training script by passing configuration arguments as `key=value` pairs directly in the command line.
-you find scripts in vision_lab/main/scripts
+Main training script:
+
+- `main/scripts/train.py`
+
+Run from `main/scripts`:
 
 ```bash
 python train.py key=value key=value ...
 ```
 
-### Examples
+## Examples
 
 ```bash
-# Basic usage with a ResNet18 model
-python train.py model=resnet18 epochs=30 bs=64 lr=3e-4
+# Baseline
+python train.py dataloader=grey model=resnet18 epochs=30 bs=64 lr=3e-4
 
-# Training an EmoNeXt model with custom loss and mixup
-python train.py model=emonext loss=emonext mix_prob=0.5 mixup_alpha=0.8
+# With warmup cosine and EMA
+python train.py dataloader=grey model=emocatnetsv2_tiny scheduler=warmup_cosine warmup_epochs=5 ema=true ema_decay=0.9999
 
-# Training a ConvNeXt Base model with label smoothing and EMA
-python train.py model=convnextferbase label_smoothing=0.1 ema=true ema_decay=0.9999
+# Mixed loader
+python train.py dataloader=mixed model=convnext_tiny epochs=100 bs=32
 ```
 
----
+## How CLI Overrides Work
 
-## Common CLI Parameters
+- Arguments are parsed as `key=value`.
+- Only keys present in `TrainSettings` (`main/src/fer/config/defaults.py`) are allowed.
+- Unknown keys fail fast.
 
-| Parameter | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `model` | `str` | `"resnet18"` | Model architecture key (from `fer.models.registry`). Options include: `emonext`, `convnextferbase`, `coatnet`, etc. |
-| `epochs` | `int` | `30` | Number of training epochs. Increase if training has not converged. |
-| `bs` | `int` | `64` | Batch size (limited by your GPU memory). |
-| `lr` | `float` | `3e-4` | Learning rate. This is typically the most important hyperparameter to tune. |
-| `optimizer` | `str` | `"adamw"` | Optimization algorithm: `adamw`, `adam`, `sgd`, `rmsprop`, `adagrad`, `adamax`, or `nadam`. |
-| `scheduler` | `str` | `"cosine"` | Learning rate scheduler: `cosine`, `step`, `exp`, `plateau`, or `none`. |
-| `class_weight` | `bool` | `True` | Use class-weighted loss for imbalanced datasets. |
-| `label_smoothing`| `float` | `0.0` | Softens labels (values between `0.05`–`0.1` often improve generalization). |
-| `loss` | `str` | `"ce"` | Loss function: `ce` or `emonext`. (Use `emonext` for EmoNeXt models). |
-| `mix_prob` | `float` | `0.0` | Probability of applying MixUp / CutMix per batch. |
-| `mixup_alpha` | `float` | `0.0` | MixUp strength (typical range: `0.4`–`0.8`). |
-| `cutmix_alpha` | `float` | `0.0` | CutMix strength (typical range: `0.5`–`1.0`). |
-| `ema` | `bool` | `False` | Enable Exponential Moving Average (EMA) of model weights. |
-| `ema_decay` | `float` | `0.0` | EMA decay factor (typical value: `0.9999`). |
-| `select_metric` | `str` | `"accuracy"` | Metric used to select the best checkpoint: `accuracy`, `f1_macro`, `f1_weighted`, etc. |
-| `preview_split` | `str` | `"test"` | Which data split to visualize: `train`, `val`, or `test`. |
+Parsing supports booleans, numbers, `none/null`, quoted strings, and Python literals.
 
----
+## Important Settings (From `TrainSettings`)
+
+- `model`: model key used by `fer.models.registry.make_model`.
+- `dataloader`: loader alias used by `fer.dataset.dataloaders.build`.
+- `images_root`: defaults to `main/src/fer/dataset/standardized`.
+- `epochs`, `bs`, `lr`, `optimizer`, `scheduler`.
+- `amp`, `grad_accum`, `grad_clip`, `early_stop`.
+- `class_weight`, `label_smoothing`.
+- `mix_prob`, `mixup_alpha`, `cutmix_alpha`.
+- `ema`, `ema_decay`, `eval_with_ema`.
+- `select_metric` (best-checkpoint metric).
+
+## Dataloader Aliases
+
+Configured in `main/src/fer/dataset/dataloaders/build.py`.
+
+Common aliases:
+
+- `grey` / `gray` (default in settings)
+- `mixed` / `main` / `default`
+- `hist_eq`
+- `fer2013`
+- `fer2013_no_int`
+- `int_norm`
+
+Each alias expects a specific sublayout under `images_root`.
 
 ## Outputs
 
-All training outputs are automatically written to a timestamped directory structured as follows:
-`<output_root>/runs/<timestamp>__<model>__<...>/`
+Runs are written to:
 
-**This directory includes:**
-* **Checkpoints:** `best.pt`, `last.pt`
-* **Metrics:** Evaluation metrics and confusion matrices
-* **Logs:** Training logs saved in CSV and JSON formats
-* **Previews:** Annotated prediction images based on the `preview_split`
-* **Exports:** `state_dict` and TorchScript exports
+- `training_output/runs/<timestamp>__<model>__user-...__/`
+
+Each run contains:
+
+- `config.json`, `meta.json`
+- `checkpoints/`
+- `logs/`
+- `metrics/`
+- `mappings/`
+- `previews/`
+- `exports/`
+- `notes/`
+
+Global index file:
+
+- `training_output/runs_index.csv`
+
+## SLURM Training Jobs
+
+Predefined jobs are in `jobs/`.
+
+Typical pattern:
+
+```bash
+sbatch jobs/train_resnet18.slurm
+```
+
+These jobs usually:
+
+- activate `venv`
+- switch to `main/scripts`
+- set node-local caches (`TMPDIR`, `HF_HOME`, `TORCH_HOME`, etc.)
+- run `python train.py ...`
