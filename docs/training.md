@@ -3,6 +3,7 @@
 ## Usage
 
 You can run the training script by passing configuration arguments as `key=value` pairs directly in the command line.
+you find scripts in vision_lab/main/scripts
 
 ```bash
 python train.py key=value key=value ...

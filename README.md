@@ -35,6 +35,53 @@ In this project, we implement and evaluate CNN-based and hybrid deep learning mo
 
 ---
 
+## Project Structure
+
+```text
+vision_lab/
+├── README.md
+├── requirements.txt
+├── .env.example
+├── docs/                     # User docs: setup flow, preprocessing, training, inference
+├── main/                     # Python package + executable scripts
+│   ├── pyproject.toml
+│   ├── src/fer/
+│   │   ├── config/           # Config defaults and override parsing
+│   │   ├── dataset/          # Dataset loading utilities
+│   │   ├── models/           # FER model implementations + factory/registry
+│   │   ├── training/         # Training runner, losses, schedules, artifacts
+│   │   ├── engine/           # Trainer/evaluator/checkpoint logic
+│   │   ├── metrics/          # Classification and confusion metrics
+│   │   ├── inference/        # Inference wrappers/hub models
+│   │   ├── pre_processing/   # Normalization and augmentation utilities
+│   │   ├── xai/              # Grad-CAM, occlusion, layer-activation tools
+│   │   ├── cli/              # CLI package entry points
+│   │   └── utils/            # Shared helpers
+│   ├── scripts/              # Standalone scripts (train, download, livecam, XAI)
+│   ├── weights/              # Local packaged weights/modules
+│   └── xai_results/          # Generated XAI outputs
+├── jobs/                     # SLURM job files for many model/training variants
+├── training_output/          # Experiment artifacts and run index
+│   ├── runs/
+│   └── runs_index.csv
+├── testing/                  # Evaluation and dataset utility scripts
+├── demo/                     # Local demo runner and instructions
+├── classification_model/     # Local image-classification inference entrypoint
+├── submission/               # Final submission-ready copies (demo + classification)
+├── reports/                  # Report outputs/notes
+├── prepare_images_raw.slurm  # Data preparation SLURM entrypoint
+├── download_sources.slurm    # Dataset/source download SLURM entrypoint
+├── ferplus_labels.csv
+└── rafdb_labels.txt
+```
+
+Notes:
+- Core source code is under `main/src/fer`.
+- `jobs/` holds cluster execution configs, while `training_output/` stores produced run artifacts.
+- `submission/` mirrors runnable deliverables for handoff.
+
+---
+
 # Setup Instructions
 
 Please execute the following steps in order.
@@ -226,4 +273,3 @@ This repository provides:
 - Structured preprocessing  
 - Clear separation between training, evaluation, and inference  
 - A practical demonstration of explainable AI in FER  
-
