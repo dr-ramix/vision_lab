@@ -16,8 +16,8 @@ from fer.models.cnn_resnet18 import (
     ResNet18Fast4FER,
 )
 from fer.models.cnn_vanilla import CNNVanilla
-from fer.models.coatnet import CoAtNet
-from fer.models.coatnetv2 import CoAtNetV2
+#from fer.models.coatnet import CoAtNet
+#from fer.models.coatnetv2 import CoAtNetV2
 from fer.models.coatnetv3 import CoAtNetV3
 from fer.models.cnn_resnet50 import ResNet50FER
 from fer.models.convnext import convnextfer

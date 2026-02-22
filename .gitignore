@@ -64,6 +64,8 @@ main/scripts/_tmp_fer2013_kaggle
 
 testing/jaffe
 testing/results_ckplus.csv
+testing/confusion_matrices
+testing/results_jaffe.csv
 
 # Training artifacts (selective sharing)
 checkpoints/        # raw checkpoints (ignored)

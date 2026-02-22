@@ -33,11 +33,11 @@ TARGET_SIZE = (64, 64)
 HF_WEIGHTS: Dict[str, Dict[str, str]] = {
     "emocatnetsv2_nano": {
         "repo_id": "lmuemonets/lmu_emonets",
-        "filename": "emocatnets_v2_nano/model_state_dict.pt",
+        "filename": "emocatnetsv2_nano/model_state_dict.pt",
     },
     "emocatnetsv3_nano": {
         "repo_id": "lmuemonets/lmu_emonets",
-        "filename": "emocatnets_v3_nano/model_state_dict.pt",
+        "filename": "emocatnetsv3_nano/model_state_dict.pt",
     },
 }
 

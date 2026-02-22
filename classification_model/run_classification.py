@@ -37,14 +37,22 @@ IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
 
 HF_WEIGHTS: Dict[str, Dict[str, str]] = {
-    "emocatnetsv2_nano": {
+    "vgg19": {
         "repo_id": "lmuemonets/lmu_emonets",
-        "filename": "emocatnets_v2_nano/model_state_dict.pt",
+        "filename": "vgg19/model_state_dict.pt",
     },
-    "emocatnetsv3_nano": {
+    "resnet18": {
         "repo_id": "lmuemonets/lmu_emonets",
-        "filename": "emocatnets_v3_nano/model_state_dict.pt",
+        "filename": "resnet18/model_state_dict.pt",
     },
+    "coatnetv3_small": {
+        "repo_id": "lmuemonets/lmu_emonets",
+        "filename": "coatnet_small/model_state_dict.pt",
+    },
+    "emocatnetsv2_base": {
+        "repo_id": "lmuemonets/lmu_emonets",
+        "filename": "emocatnetsv2base/model_state_dict.pt",
+    },    
 }
 
 
@@ -385,7 +393,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument(
         "--models",
         nargs="+",
-        default=["emocatnetsv3_nano", "emocatnetsv2_nano"],
+        default=["vgg19", "resnet18", "coatnetv3_small", "emocatnetsv2_base"],
         choices=allowed,
         help="Models used when --model ensemble.",
     )
