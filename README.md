@@ -149,25 +149,6 @@ OK
 
 ---
 
-
-# Data Download & Pre-Processing
-
-After the installation is complete, you must:
-
-- Download the required datasets  
-- Configure the `.env` file  
-- Run the preprocessing pipeline  
-
-All detailed instructions are documented in:
-
-```
-docs/pre_processing.md
-```
-
-Follow the steps there carefully and in the specified order.
-
----
-
 # Submission Structure
 
 Inside the `submission/` directory you will find:
@@ -216,6 +197,25 @@ This explains:
 
 ---
 
+
+# Data Download & Pre-Processing
+
+After the installation is complete, you must:
+
+- Download the required datasets  
+- Configure the `.env` file  
+- Run the preprocessing pipeline  
+
+All detailed instructions are documented in:
+
+```
+docs/pre_processing.md
+```
+
+Follow the steps there carefully and in the specified order.
+
+---
+
 # Project Goal
 
 This repository provides:
@@ -227,8 +227,3 @@ This repository provides:
 - Clear separation between training, evaluation, and inference  
 - A practical demonstration of explainable AI in FER  
 
-For full preprocessing details and experiment configuration, always refer to:
-
-```
-docs/pre_processing.md
-```
