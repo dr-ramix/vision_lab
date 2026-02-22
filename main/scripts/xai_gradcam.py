@@ -30,7 +30,7 @@ MAX_IMAGES = 100
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-DATASET_ROOT = Path("../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test").resolve()
+DATASET_ROOT = Path("../src/fer/dataset/standardized/only_mtcnn_cropped/grey/png/test").resolve()
 WEIGHTS_PATH = Path("../weights/emocatnetsv2/model_state_dict_emocat_v2.pt").resolve()
 OUTPUT_DIR = Path("../xai_results/gradcam").resolve()
 

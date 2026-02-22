@@ -24,7 +24,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
+DATASET_ROOT = "../src/fer/dataset/standardized/only_mtcnn_cropped/grey/png/test"
 WEIGHTS_PATH = "../weights/emocatnetsv2/model_state_dict_emocat_v2.pt"
 OUTPUT_DIR = Path("../xai_results/layer_activation").resolve()
 

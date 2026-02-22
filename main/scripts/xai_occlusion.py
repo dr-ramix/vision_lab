@@ -23,7 +23,7 @@ np.random.seed(SEED)
 random.seed(SEED)
 
 
-DATASET_ROOT = "../src/fer/dataset/standardized/images_mtcnn_cropped_norm/test"
+DATASET_ROOT = "../src/fer/dataset/standardized/only_mtcnn_cropped/grey/png/test"
 WEIGHTS_PATH = "../weights/emocatnetsv2/model_state_dict_emocat_v2.pt"
 OUTPUT_DIR = Path("../xai_results/occlusion").resolve()
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
